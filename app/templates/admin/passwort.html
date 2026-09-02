@@ -1,0 +1,15 @@
+{% extends "admin/base.html" %}
+{% block admin_content %}
+<h1>Eigenes Passwort ändern</h1>
+{% if erfolg %}<p class="hinweis-erfolg">Passwort wurde geändert.</p>{% endif %}
+{% if fehler %}<p class="hinweis-fehler">{{ fehler }}</p>{% endif %}
+<form class="formular" method="post" action="/admin/passwort">
+  <label for="aktuelles_passwort">Aktuelles Passwort</label>
+  <input id="aktuelles_passwort" name="aktuelles_passwort" type="password" required>
+  <label for="neues_passwort">Neues Passwort</label>
+  <input id="neues_passwort" name="neues_passwort" type="password" minlength="8" required>
+  <label for="neues_passwort_wiederholen">Neues Passwort wiederholen</label>
+  <input id="neues_passwort_wiederholen" name="neues_passwort_wiederholen" type="password" minlength="8" required>
+  <button type="submit" class="button button-primary">Passwort ändern</button>
+</form>
+{% endblock %}

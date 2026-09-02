@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}{{ site_title }} — Verwaltung{% endblock %}
+{% block body %}
+<div class="admin-layout">
+  <nav class="admin-nav">
+    <h2 style="font-size:1.1rem;">Verwaltung</h2>
+    <a href="/admin/mitarbeiter">Mitarbeiter</a>
+    <a href="/admin/besucher">Besucherprofile</a>
+    <a href="/admin/log">Log &amp; Export</a>
+    <a href="/admin/agenten">Agenten</a>
+    <a href="/admin/passwort">Eigenes Passwort</a>
+    <hr style="border-color:#475569; margin:1rem 0;">
+    <a href="/" target="_blank" rel="noopener">Kiosk-Ansicht ↗</a>
+    <form method="post" action="/admin/logout" style="margin-top:1rem;">
+      <button type="submit" class="button button-sekundaer" style="width:100%;">Abmelden</button>
+    </form>
+  </nav>
+  <div class="admin-content">
+    {% block admin_content %}{% endblock %}
+  </div>
+</div>
+{% endblock %}

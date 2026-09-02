@@ -1,0 +1,39 @@
+{% extends "admin/base.html" %}
+{% block admin_content %}
+<h1>Log (rein lesend)</h1>
+<p>Das Protokoll ist append-only — Einträge können hier weder geändert noch gelöscht werden.
+Automatische Löschung findet ausschließlich über den Wartungsjob statt (Aufbewahrungsfrist).</p>
+
+<form class="formular" method="get" action="/admin/log" style="flex-direction:row; align-items:end; gap:1rem; max-width:none;">
+  <div>
+    <label for="von">Von</label>
+    <input id="von" type="date" name="von" value="{{ von }}">
+  </div>
+  <div>
+    <label for="bis">Bis</label>
+    <input id="bis" type="date" name="bis" value="{{ bis }}">
+  </div>
+  <button type="submit" class="button button-primary">Filtern</button>
+  <a class="button button-sekundaer" href="/admin/log/export.csv?von={{ von }}&bis={{ bis }}">Als CSV exportieren</a>
+</form>
+
+<div class="karte" style="margin-top:1.5rem;">
+  <table>
+    <thead><tr><th>Zeitpunkt</th><th>Typ</th><th>Name</th><th>Firma</th><th>Aktion</th><th>Quelle</th></tr></thead>
+    <tbody>
+      {% for row in eintraege %}
+      <tr>
+        <td>{{ row.entry.timestamp.strftime("%d.%m.%Y %H:%M:%S") }}</td>
+        <td>{{ "Mitarbeiter" if row.entry.person_type == "employee" else "Extern" }}</td>
+        <td>{{ row.name }}</td>
+        <td>{{ row.firma or "" }}</td>
+        <td>{{ "Check-in" if row.entry.action == "checkin" else "Check-out" }}</td>
+        <td>{{ "RFID" if row.entry.source == "rfid" else "manuell" }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% if not eintraege %}<p>Keine Einträge im gewählten Zeitraum.</p>{% endif %}
+  <p><small>Zeigt maximal die letzten 500 Einträge im gewählten Zeitraum. Für vollständige Auswertungen den CSV-Export nutzen.</small></p>
+</div>
+{% endblock %}

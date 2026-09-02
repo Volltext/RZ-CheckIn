@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}{{ site_title }} — Anmeldung{% endblock %}
+{% block body %}
+<main style="max-width:360px; margin:4rem auto; padding:0 1rem;">
+  <h1>Verwaltung — Anmeldung</h1>
+  {% if fehler %}<p class="hinweis-fehler">{{ fehler }}</p>{% endif %}
+  <form class="formular" method="post" action="/admin/login">
+    <label for="username">Benutzername</label>
+    <input id="username" name="username" required autofocus>
+    <label for="password">Passwort</label>
+    <input id="password" name="password" type="password" required>
+    <button type="submit" class="button button-primary">Anmelden</button>
+  </form>
+</main>
+{% endblock %}

@@ -1,0 +1,42 @@
+{% extends "admin/base.html" %}
+{% block admin_content %}
+<h1>Besucherprofile</h1>
+{% if fehler %}<p class="hinweis-fehler">{{ fehler }}</p>{% endif %}
+
+<div class="karte">
+  <table>
+    <thead>
+      <tr><th>Name</th><th>Firma</th><th>Telefon</th><th>Aktionen</th></tr>
+    </thead>
+    <tbody>
+      {% for v in besucher %}
+      <tr>
+        <td>{{ v.vorname }} {{ v.nachname }}</td>
+        <td>{{ v.firma or "" }}</td>
+        <td>{{ v.telefonnummer or "" }}</td>
+        <td>
+          <details>
+            <summary>Bearbeiten</summary>
+            <form method="post" action="/admin/besucher/{{ v.id }}/bearbeiten" class="formular">
+              <label>Vorname</label>
+              <input name="vorname" value="{{ v.vorname }}" required>
+              <label>Nachname</label>
+              <input name="nachname" value="{{ v.nachname }}" required>
+              <label>Firma</label>
+              <input name="firma" value="{{ v.firma or '' }}">
+              <label>Telefonnummer</label>
+              <input name="telefonnummer" value="{{ v.telefonnummer or '' }}">
+              <button type="submit" class="button button-primary">Speichern</button>
+            </form>
+          </details>
+          <form method="post" action="/admin/besucher/{{ v.id }}/loeschen" class="formular-inline"
+                onsubmit="return confirm('Profil von {{ v.vorname }} {{ v.nachname }} wirklich unwiderruflich löschen?');">
+            <button type="submit" class="button button-warnung">Löschen (DSGVO)</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

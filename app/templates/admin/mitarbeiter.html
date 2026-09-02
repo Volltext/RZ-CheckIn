@@ -1,0 +1,91 @@
+{% extends "admin/base.html" %}
+{% block admin_content %}
+<h1>Mitarbeiter</h1>
+
+<div class="karte">
+  <h2 style="margin-top:0;">Neuen Mitarbeiter anlegen</h2>
+  <form class="formular" method="post" action="/admin/mitarbeiter/anlegen">
+    <label for="vorname">Vorname</label>
+    <input id="vorname" name="vorname" required>
+    <label for="nachname">Nachname</label>
+    <input id="nachname" name="nachname" required>
+    <button type="submit" class="button button-primary">Anlegen</button>
+  </form>
+</div>
+
+{% if unbekannte_karten %}
+<div class="karte">
+  <h2 style="margin-top:0;">Unbekannte Karten am Reader</h2>
+  <p>Diese UIDs wurden gescannt, sind aber keinem Mitarbeiter zugeordnet.</p>
+  <table>
+    <thead><tr><th>UID</th><th>Zuletzt gesehen</th><th>Anzahl</th><th>Aktion</th></tr></thead>
+    <tbody>
+      {% for u in unbekannte_karten %}
+      <tr>
+        <td><code>{{ u.uid }}</code></td>
+        <td>{{ u.zuletzt_gesehen.strftime("%d.%m.%Y %H:%M") }}</td>
+        <td>{{ u.anzahl }}</td>
+        <td>
+          <form method="post" action="/admin/unbekannte-karten/{{ u.uid }}/zuordnen" class="formular-inline">
+            <select name="employee_id" required>
+              <option value="" disabled selected>Mitarbeiter wählen …</option>
+              {% for m in mitarbeiter %}
+              <option value="{{ m.id }}">{{ m.vorname }} {{ m.nachname }}{% if m.rfid_uid %} (Karte wird ersetzt){% endif %}</option>
+              {% endfor %}
+            </select>
+            <button type="submit" class="button button-primary">Zuordnen</button>
+          </form>
+          <form method="post" action="/admin/unbekannte-karten/{{ u.uid }}/loeschen" class="formular-inline">
+            <button type="submit" class="button button-sekundaer">Verwerfen</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+<div class="karte">
+  <h2 style="margin-top:0;">Alle Mitarbeiter</h2>
+  <table>
+    <thead>
+      <tr><th>Name</th><th>Karte (UID)</th><th>Status</th><th>Aktionen</th></tr>
+    </thead>
+    <tbody>
+      {% for m in mitarbeiter %}
+      <tr>
+        <td>{{ m.vorname }} {{ m.nachname }}</td>
+        <td>{{ m.rfid_uid or "—" }}</td>
+        <td>
+          {% if m.aktiv %}<span class="badge badge-aktiv">aktiv</span>
+          {% else %}<span class="badge badge-inaktiv">inaktiv</span>{% endif %}
+        </td>
+        <td>
+          <details>
+            <summary>Karte zuordnen</summary>
+            <form method="post" action="/admin/mitarbeiter/{{ m.id }}/karte-zuordnen" class="formular-inline">
+              <input type="text" name="rfid_uid" placeholder="UID (Hex)" required style="width:9rem;">
+              <button type="submit" class="button button-primary">Zuordnen</button>
+            </form>
+          </details>
+          {% if m.rfid_uid %}
+          <form method="post" action="/admin/mitarbeiter/{{ m.id }}/karte-entfernen" class="formular-inline">
+            <button type="submit" class="button button-sekundaer">Karte entfernen</button>
+          </form>
+          {% endif %}
+          <form method="post" action="/admin/mitarbeiter/{{ m.id }}/aktiv" class="formular-inline">
+            <input type="hidden" name="aktiv" value="{{ 'false' if m.aktiv else 'true' }}">
+            {% if m.aktiv %}
+            <button type="submit" class="button button-warnung">Deaktivieren</button>
+            {% else %}
+            <button type="submit" class="button button-erfolg">Aktivieren</button>
+            {% endif %}
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

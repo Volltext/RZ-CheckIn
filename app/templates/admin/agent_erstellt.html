@@ -1,0 +1,12 @@
+{% extends "admin/base.html" %}
+{% block admin_content %}
+<h1>Agent angelegt</h1>
+<div class="karte">
+  <p><strong>Agent-ID:</strong> {{ agent_id }}</p>
+  <p class="hinweis-fehler">Dieser API-Key wird nur jetzt einmalig angezeigt und danach nicht
+  mehr abrufbar. In der Agent-Konfiguration (<code>agent.ini</code>) auf dem Kiosk-PC
+  eintragen:</p>
+  <pre style="background:#0f172a; color:#f8fafc; padding:1rem; border-radius:0.4rem; overflow-x:auto;">{{ api_key }}</pre>
+  <a class="button button-primary" href="/admin/agenten">Zurück zur Übersicht</a>
+</div>
+{% endblock %}

@@ -1,0 +1,39 @@
+{% extends "admin/base.html" %}
+{% block admin_content %}
+<h1>Reader-Agenten</h1>
+<p>Jeder Kiosk-PC benötigt einen eigenen Agenten-Eintrag mit API-Key
+(<code>X-Agent-Key</code>-Header) für <code>/api/checkin/rfid</code> und
+<code>/api/agent/heartbeat</code>.</p>
+
+<div class="karte">
+  <h2 style="margin-top:0;">Neuen Agenten anlegen</h2>
+  <form class="formular" method="post" action="/admin/agenten/anlegen">
+    <label for="agent_id">Agent-ID</label>
+    <input id="agent_id" name="agent_id" placeholder="z. B. kiosk1" required>
+    <label for="bezeichnung">Bezeichnung</label>
+    <input id="bezeichnung" name="bezeichnung" placeholder="z. B. Eingang RZ" required>
+    <button type="submit" class="button button-primary">Anlegen</button>
+  </form>
+</div>
+
+<div class="karte">
+  <table>
+    <thead><tr><th>Agent-ID</th><th>Bezeichnung</th><th>Zuletzt gesehen</th><th></th></tr></thead>
+    <tbody>
+      {% for a in agenten %}
+      <tr>
+        <td>{{ a.agent_id }}</td>
+        <td>{{ a.bezeichnung }}</td>
+        <td>{{ a.last_seen.strftime("%d.%m.%Y %H:%M:%S") if a.last_seen else "noch nie" }}</td>
+        <td>
+          <form method="post" action="/admin/agenten/{{ a.agent_id }}/loeschen" class="formular-inline"
+                onsubmit="return confirm('Agent {{ a.agent_id }} wirklich löschen? Der API-Key wird ungültig.');">
+            <button type="submit" class="button button-warnung">Löschen</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
