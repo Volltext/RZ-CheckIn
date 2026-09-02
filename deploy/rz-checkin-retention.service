@@ -1,0 +1,14 @@
+# Wartungsjob (Aufbewahrungsfrist, Konzept 7): läuft bewusst getrennt vom
+# rz-checkin.service, angestoßen täglich über rz-checkin-retention.timer.
+# Nach /etc/systemd/system/rz-checkin-retention.service kopieren, dann:
+#   systemctl daemon-reload
+#   systemctl enable --now rz-checkin-retention.timer
+
+[Unit]
+Description=RZ-CheckIn: Log-Einträge älter als die Aufbewahrungsfrist löschen
+After=rz-checkin.service
+Requires=rz-checkin.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/podman exec rz-checkin python -m app.cli purge

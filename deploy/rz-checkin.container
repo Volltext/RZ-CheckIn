@@ -1,0 +1,41 @@
+# Podman-Quadlet-Unit für die RZ-CheckIn-Anwendung (ein einzelner Container, keine
+# docker-compose nötig). Nach /etc/containers/systemd/rz-checkin.container kopieren,
+# dann:
+#   systemctl daemon-reload
+#   systemctl start rz-checkin.service
+#   systemctl enable rz-checkin.service   # (bei Bedarf, meist reicht WantedBy unten)
+#
+# Doku: https://docs.podman.io/en/latest/markdown/podman-systemd.unit.5.html
+
+[Unit]
+Description=RZ-CheckIn Backend
+After=network-online.target
+Wants=network-online.target
+
+[Container]
+Image=localhost/rz-checkin:latest
+ContainerName=rz-checkin
+# Baut das Image lokal aus dem Containerfile im Projektwurzelverzeichnis, falls es noch
+# nicht existiert. Alternativ: Image über eine interne Registry beziehen und diese Zeile
+# entfernen.
+# Build=/pfad/zum/repo
+
+Volume=rz_checkin_data:/data
+PublishPort=127.0.0.1:8000:8000
+
+Environment=RZ_SITE_TITLE=Rechenzentrum Check-in
+# Weitere Variablen (RZ_SESSION_SECRET, RZ_RETENTION_DAYS, ...) am besten über eine
+# EnvironmentFile-Datei mit eingeschränkten Rechten pflegen statt hier im Klartext:
+EnvironmentFile=-/etc/rz-checkin/rz-checkin.env
+
+HealthCmd=python -c "import urllib.request as u; u.urlopen('http://127.0.0.1:8000/health', timeout=3)"
+HealthInterval=30s
+HealthRetries=3
+HealthStartPeriod=10s
+
+[Service]
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target default.target
