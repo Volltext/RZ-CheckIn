@@ -1,0 +1,13 @@
+{% if event %}
+  {% if event.result == "checkin" %}
+    <div class="feedback feedback-checkin">✓ {{ event.name }} eingecheckt</div>
+    <script>beep();</script>
+  {% elif event.result == "checkout" %}
+    <div class="feedback feedback-checkout">↩ {{ event.name }} ausgecheckt</div>
+    <script>beep();</script>
+  {% elif event.result == "unknown_card" %}
+    <div class="feedback feedback-fehler">✕ Karte nicht erkannt</div>
+  {% elif event.result == "card_inactive" %}
+    <div class="feedback feedback-fehler">✕ Karte ist gesperrt ({{ event.name }})</div>
+  {% endif %}
+{% endif %}

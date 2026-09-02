@@ -1,0 +1,139 @@
+/* Bewusst schlicht: läuft auf einem Kiosk-Touchscreen und in normalen Admin-Browsern,
+   keine Frontend-Build-Pipeline nötig. */
+
+:root {
+  --farbe-hintergrund: #0f172a;
+  --farbe-flaeche: #1e293b;
+  --farbe-flaeche-hell: #f8fafc;
+  --farbe-text: #0f172a;
+  --farbe-text-hell: #f8fafc;
+  --farbe-akzent: #2563eb;
+  --farbe-erfolg: #16a34a;
+  --farbe-warnung: #dc2626;
+  --farbe-rand: #cbd5e1;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+  color: var(--farbe-text);
+  background: #f1f5f9;
+}
+
+body.kiosk {
+  background: var(--farbe-hintergrund);
+  color: var(--farbe-text-hell);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+header.kiosk-header {
+  padding: 1.5rem 2rem 0.5rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+header.kiosk-header h1 {
+  margin: 0;
+  font-size: 1.75rem;
+}
+
+main {
+  flex: 1;
+  padding: 1rem 2rem 2rem;
+  max-width: 1100px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.kiosk-buttons {
+  display: flex;
+  gap: 1rem;
+  margin: 1.5rem 0;
+  flex-wrap: wrap;
+}
+
+.button {
+  display: inline-block;
+  padding: 0.9rem 1.6rem;
+  border-radius: 0.5rem;
+  border: none;
+  font-size: 1.1rem;
+  cursor: pointer;
+  text-decoration: none;
+  text-align: center;
+}
+
+.button-primary { background: var(--farbe-akzent); color: white; }
+.button-erfolg { background: var(--farbe-erfolg); color: white; }
+.button-warnung { background: var(--farbe-warnung); color: white; }
+.button-sekundaer { background: var(--farbe-flaeche); color: var(--farbe-text-hell); border: 1px solid #475569; }
+
+table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
+th, td { text-align: left; padding: 0.6rem 0.8rem; border-bottom: 1px solid rgba(148, 163, 184, 0.3); }
+body:not(.kiosk) th, body:not(.kiosk) td { border-bottom: 1px solid var(--farbe-rand); }
+
+#feedback-banner {
+  min-height: 3rem;
+  display: flex;
+  align-items: center;
+}
+
+.feedback {
+  padding: 0.9rem 1.2rem;
+  border-radius: 0.5rem;
+  font-size: 1.2rem;
+  width: 100%;
+}
+
+.feedback-checkin { background: rgba(22, 163, 74, 0.25); border: 1px solid var(--farbe-erfolg); }
+.feedback-checkout { background: rgba(37, 99, 235, 0.25); border: 1px solid var(--farbe-akzent); }
+.feedback-fehler { background: rgba(220, 38, 38, 0.25); border: 1px solid var(--farbe-warnung); }
+
+footer.dsgvo-hinweis {
+  padding: 1rem 2rem;
+  font-size: 0.8rem;
+  color: #94a3b8;
+  border-top: 1px solid #334155;
+}
+
+/* Admin-Bereich */
+.admin-layout { display: flex; min-height: 100vh; }
+.admin-nav {
+  width: 220px;
+  background: var(--farbe-flaeche);
+  color: var(--farbe-text-hell);
+  padding: 1.5rem 1rem;
+  flex-shrink: 0;
+}
+.admin-nav a { display: block; color: var(--farbe-text-hell); text-decoration: none; padding: 0.5rem 0.4rem; border-radius: 0.3rem; }
+.admin-nav a:hover { background: rgba(255,255,255,0.1); }
+.admin-content { flex: 1; padding: 2rem; max-width: 1000px; }
+
+.karte {
+  background: white;
+  border: 1px solid var(--farbe-rand);
+  border-radius: 0.6rem;
+  padding: 1.2rem 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+form.formular { display: flex; flex-direction: column; gap: 0.7rem; max-width: 420px; }
+form.formular label { font-size: 0.9rem; font-weight: 600; }
+form.formular input, form.formular select {
+  padding: 0.5rem 0.6rem;
+  border: 1px solid var(--farbe-rand);
+  border-radius: 0.4rem;
+  font-size: 1rem;
+}
+form.formular-inline { display: inline; }
+
+.hinweis-fehler { color: var(--farbe-warnung); font-weight: 600; }
+.hinweis-erfolg { color: var(--farbe-erfolg); font-weight: 600; }
+.badge { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 1rem; font-size: 0.75rem; }
+.badge-aktiv { background: rgba(22,163,74,0.15); color: var(--farbe-erfolg); }
+.badge-inaktiv { background: rgba(220,38,38,0.15); color: var(--farbe-warnung); }

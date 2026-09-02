@@ -1,0 +1,17 @@
+{% if q and q.strip() %}
+  {% if treffer %}
+    <ul class="besucher-treffer">
+      {% for v in treffer %}
+      <li>
+        <form method="post" action="/kiosk/besucher/einchecken" class="formular-inline">
+          <input type="hidden" name="visitor_id" value="{{ v.id }}">
+          <span>{{ v.vorname }} {{ v.nachname }}{% if v.firma %} — {{ v.firma }}{% endif %}</span>
+          <button type="submit" class="button button-erfolg">Einchecken</button>
+        </form>
+      </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p>Kein vorhandenes Profil gefunden — unten neues Profil anlegen.</p>
+  {% endif %}
+{% endif %}

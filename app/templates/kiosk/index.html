@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block body_class %}kiosk{% endblock %}
+{% block body %}
+<header class="kiosk-header">
+  <h1>{{ site_title }}</h1>
+</header>
+
+<main>
+  <div id="feedback-banner" data-poll-url="/kiosk/feedback-partial" data-poll-interval="2000"></div>
+
+  <div class="kiosk-buttons">
+    <a class="button button-erfolg" href="/kiosk/besucher">Externer Besucher einchecken</a>
+    <a class="button button-sekundaer" href="/kiosk/besucher/auschecken">Externer Besucher auschecken</a>
+  </div>
+
+  <h2>Aktuell im Rechenzentrum</h2>
+  <div id="presence-list" data-poll-url="/kiosk/presence-partial" data-poll-interval="5000">
+    {% include "kiosk/_presence.html" %}
+  </div>
+</main>
+
+<footer class="dsgvo-hinweis">
+  Hinweis: Zum Zutritt zum Rechenzentrum werden Name, ggf. Firma und Zeitpunkt von
+  Ein- und Auscheckung protokolliert. Die Daten dienen ausschließlich der
+  Zutrittsdokumentation und werden gemäß der geltenden Aufbewahrungsfrist gelöscht.
+</footer>
+{% endblock %}

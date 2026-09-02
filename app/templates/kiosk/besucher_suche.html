@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block body_class %}kiosk{% endblock %}
+{% block body %}
+<header class="kiosk-header">
+  <h1>Externer Besucher — Einchecken</h1>
+  <a class="button button-sekundaer" href="/">Zurück</a>
+</header>
+
+<main>
+  <label for="suche">Vorhandenes Profil suchen (Name oder Telefonnummer)</label>
+  <input
+    id="suche"
+    type="search"
+    autocomplete="off"
+    placeholder="z. B. Mustermann"
+    data-search-url="/kiosk/besucher/suche-partial"
+    data-swap-target="#suche-ergebnisse"
+    style="width:100%; padding:0.8rem; font-size:1.1rem; margin:0.5rem 0 1.5rem;"
+  >
+  <div id="suche-ergebnisse"></div>
+
+  <hr style="margin:2rem 0; border-color:#334155;">
+
+  <h2>Neues Besucherprofil anlegen</h2>
+  <form class="formular" method="post" action="/kiosk/besucher/anlegen">
+    <label for="vorname">Vorname</label>
+    <input id="vorname" name="vorname" required>
+    <label for="nachname">Nachname</label>
+    <input id="nachname" name="nachname" required>
+    <label for="firma">Firma</label>
+    <input id="firma" name="firma">
+    <label for="telefonnummer">Telefonnummer</label>
+    <input id="telefonnummer" name="telefonnummer">
+    <button type="submit" class="button button-erfolg">Anlegen und einchecken</button>
+  </form>
+</main>
+
+<footer class="dsgvo-hinweis">
+  Hinweis: Zum Zutritt zum Rechenzentrum werden Name, ggf. Firma und Zeitpunkt von
+  Ein- und Auscheckung protokolliert. Die Daten dienen ausschließlich der
+  Zutrittsdokumentation und werden gemäß der geltenden Aufbewahrungsfrist gelöscht.
+</footer>
+{% endblock %}

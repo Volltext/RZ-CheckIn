@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block body_class %}kiosk{% endblock %}
+{% block body %}
+<header class="kiosk-header">
+  <h1>Externer Besucher — Auschecken</h1>
+  <a class="button button-sekundaer" href="/">Zurück</a>
+</header>
+
+<main>
+  <div id="auscheck-liste" data-poll-url="/kiosk/besucher/auschecken-partial" data-poll-interval="5000">
+    {% include "kiosk/_besucher_auschecken_liste.html" %}
+  </div>
+</main>
+{% endblock %}

@@ -1,0 +1,18 @@
+{% if present %}
+<table>
+  <thead>
+    <tr><th>Name</th><th>Firma</th><th>Eingecheckt seit</th></tr>
+  </thead>
+  <tbody>
+    {% for p in present %}
+    <tr>
+      <td>{{ p.name }}{% if p.person_type == "visitor" %} <small>(extern)</small>{% endif %}</td>
+      <td>{{ p.firma or "" }}</td>
+      <td>{{ p.checkin_zeit.strftime("%d.%m.%Y %H:%M") }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p>Aktuell ist niemand im Rechenzentrum eingecheckt.</p>
+{% endif %}
