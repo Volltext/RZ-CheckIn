@@ -1,0 +1,42 @@
+; Konfiguration des Reader-Agenten. Nach Windows kopieren als agent.ini und anpassen.
+; Jeder Wert kann auch per Umgebungsvariable RZ_AGENT_<NAME IN GROSSBUCHSTABEN>
+; überschrieben werden, z.B. RZ_AGENT_API_KEY (praktisch, um den Key nicht im Klartext
+; in der Datei abzulegen).
+
+[agent]
+; URL des RZ-CheckIn-Backends (interner Server, siehe README).
+server_url = https://rz-checkin.intern.example.org
+
+; Sprechende ID dieses Kiosk-PCs, muss im Admin-Bereich unter "Agenten" angelegt sein.
+agent_id = kiosk1
+
+; API-Key, der beim Anlegen des Agenten im Admin-Bereich einmalig angezeigt wird.
+; Nicht im Klartext committen -- besser über RZ_AGENT_API_KEY setzen oder die Datei
+; mit eingeschränkten NTFS-Rechten versehen.
+api_key = BITTE-AUS-DEM-ADMIN-BEREICH-EINTRAGEN
+
+; PN532 als USB-Seriell-Board (empfohlen für Windows, siehe agent/README.md):
+;   reader = tty:COM3:pn532
+; Reines USB/HID-Board (braucht Zadig/libusb unter Windows):
+;   reader = usb
+reader = tty:COM3:pn532
+
+; Sekunden zwischen zwei Heartbeats (siehe /health/agent/{agent_id} für die
+; PRTG-Überwachung).
+heartbeat_interval = 30
+
+; Sekunden zwischen zwei Versuchen, den Offline-Puffer zu leeren.
+spool_flush_interval = 15
+
+; Mindestabstand zwischen zwei Reads, damit eine liegen bleibende Karte nicht
+; mehrfach pro Sekunde ausgelesen wird (zusätzlich zur serverseitigen Entprellung).
+scan_cooldown = 1.0
+
+; TLS-Prüfung. false nur für Testaufbauten ohne gültiges Zertifikat verwenden.
+verify_tls = true
+; Pfad zu einem eigenen CA-Bundle, falls der Server ein internes Zertifikat nutzt.
+; ca_bundle = C:\pfad\zur\firmen-ca.pem
+
+; Dateien im Arbeitsverzeichnis des Agenten (bei nssm i.d.R. der Installationsordner).
+spool_path = agent_spool.jsonl
+log_path = reader_agent.log
