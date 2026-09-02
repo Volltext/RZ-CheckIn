@@ -1,0 +1,14 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+.env
+data/
+*.db
+*.db-shm
+*.db-wal
+.pytest_cache/
+*.egg-info/
+agent/agent.ini
+agent/agent_spool.jsonl
+agent/reader_agent.log
