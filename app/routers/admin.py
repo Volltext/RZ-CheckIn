@@ -27,7 +27,12 @@ from app.security import (
 )
 from app.services.attendance import checkout_person, is_present
 from app.services.export import export_checklog_csv
-from app.services.settings import get_auto_checkout_hours, set_auto_checkout_hours
+from app.services.settings import (
+    get_auto_checkout_hours,
+    get_besucher_suche_aktiv,
+    set_auto_checkout_hours,
+    set_besucher_suche_aktiv,
+)
 from app.services.visitors import VisitorCurrentlyPresentError, delete_visitor
 from app.templating import templates
 from app.config import get_settings
@@ -39,7 +44,7 @@ router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(check_
 
 @router.get("/", response_class=HTMLResponse)
 def admin_index() -> RedirectResponse:
-    return RedirectResponse(url="/admin/mitarbeiter", status_code=303)
+    return RedirectResponse(url="/admin/besucher", status_code=303)
 
 
 # --- Login/Logout -----------------------------------------------------------
@@ -65,7 +70,7 @@ def login_submit(
             {"fehler": "Benutzername oder Passwort ist falsch."},
             status_code=401,
         )
-    response = RedirectResponse(url="/admin/mitarbeiter", status_code=303)
+    response = RedirectResponse(url="/admin/besucher", status_code=303)
     response.set_cookie(
         settings.session_cookie_name,
         create_session_token(admin.id),
@@ -438,7 +443,12 @@ def einstellungen_form(
     return templates.TemplateResponse(
         request,
         "admin/einstellungen.html",
-        {"admin": admin, "auto_checkout_stunden": get_auto_checkout_hours(db), "erfolg": False},
+        {
+            "admin": admin,
+            "auto_checkout_stunden": get_auto_checkout_hours(db),
+            "besucher_suche_aktiv": get_besucher_suche_aktiv(db),
+            "erfolg": False,
+        },
     )
 
 
@@ -457,7 +467,13 @@ def einstellungen_speichern(
         return templates.TemplateResponse(
             request,
             "admin/einstellungen.html",
-            {"admin": admin, "auto_checkout_stunden": get_auto_checkout_hours(db), "fehler": fehler, "erfolg": False},
+            {
+                "admin": admin,
+                "auto_checkout_stunden": get_auto_checkout_hours(db),
+                "besucher_suche_aktiv": get_besucher_suche_aktiv(db),
+                "fehler": fehler,
+                "erfolg": False,
+            },
             status_code=400,
         )
 
@@ -465,5 +481,32 @@ def einstellungen_speichern(
     return templates.TemplateResponse(
         request,
         "admin/einstellungen.html",
-        {"admin": admin, "auto_checkout_stunden": auto_checkout_stunden, "erfolg": True},
+        {
+            "admin": admin,
+            "auto_checkout_stunden": auto_checkout_stunden,
+            "besucher_suche_aktiv": get_besucher_suche_aktiv(db),
+            "erfolg": True,
+        },
+    )
+
+
+@router.post("/einstellungen/besucher-suche", response_class=HTMLResponse)
+def einstellungen_besucher_suche_speichern(
+    request: Request,
+    aktiv: bool = Form(False),
+    db: Session = Depends(get_db),
+    admin: AdminUser = Depends(get_current_admin),
+) -> HTMLResponse:
+    """Checkbox-Formular: nicht angehakt sendet das Feld gar nicht mit, daher
+    Form(False) als Default statt Form(...)."""
+    set_besucher_suche_aktiv(db, aktiv)
+    return templates.TemplateResponse(
+        request,
+        "admin/einstellungen.html",
+        {
+            "admin": admin,
+            "auto_checkout_stunden": get_auto_checkout_hours(db),
+            "besucher_suche_aktiv": aktiv,
+            "erfolg": True,
+        },
     )

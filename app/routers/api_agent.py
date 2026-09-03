@@ -29,12 +29,18 @@ def checkin_rfid(
     db: Session = Depends(get_db),
     agent: Agent = Depends(require_agent),
 ) -> RfidScanResponse:
-    outcome = record_rfid_scan(db, uid=payload.uid, timestamp=payload.timestamp)
+    # Der Raum wird über den authentifizierten Agenten bestimmt (ein Agent pro
+    # Technikraum, siehe app/models.py::Agent), nicht über payload.agent_id -- der Header
+    # ist bereits die vertrauenswürdige Quelle für die Agent-Identität (siehe
+    # app/security.require_agent).
+    outcome = record_rfid_scan(db, uid=payload.uid, timestamp=payload.timestamp, raum=agent.agent_id)
     # UID nur bei unbekannter Karte mitschicken -- der Kiosk braucht sie für die
     # Registrierung (siehe app/routers/kiosk.py), sonst ist sie fürs UI irrelevant. Es
     # gibt bewusst keinen Namen im Feedback-Event -- Mitarbeiter werden nur über ihre
     # Dienstausweisnummer geführt (siehe app/models.py::Employee).
-    push_event(outcome.result, uid=payload.uid if outcome.result == "unknown_card" else None)
+    push_event(
+        outcome.result, uid=payload.uid if outcome.result == "unknown_card" else None, agent_id=agent.agent_id
+    )
     return RfidScanResponse(
         result=outcome.result,
         action_timestamp=outcome.action_timestamp,

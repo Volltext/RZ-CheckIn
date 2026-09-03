@@ -17,7 +17,9 @@ Admin-Bereich einstellbaren Anzahl Stunden aus (`/admin/einstellungen`).
 bestehenden (dienstleistergesteuerten) Zutrittssystem.
 
 Das vollständige Konzept inkl. aller Entscheidungen steht im ursprünglichen
-Anforderungsdokument; dieses README beschreibt den Code und den Betrieb.
+Anforderungsdokument; dieses README beschreibt den Code und den Betrieb. Wer nur schnell
+einen Server aufsetzen möchte, ohne den ganzen Rest zu lesen: direkt weiter zu
+["Schnellstart"](#schnellstart-server-in-10-minuten-aufsetzen).
 
 ## Architektur
 
@@ -40,32 +42,216 @@ Server (VM, intern)                      Kiosk-PC (Eingang RZ)
 - **Append-only-Log**: `checklog` erlaubt auf DB-Ebene nur `INSERT`; `UPDATE`/`DELETE`
   sind per SQLite-Trigger blockiert (Ausnahme: der Retention-Wartungsjob, siehe unten).
 
+## Schnellstart: Server in 10 Minuten aufsetzen
+
+Diese Anleitung setzt **nur** voraus, dass ihr euch per SSH auf einen Linux-Server
+verbinden könnt (getestet mit Debian 12 / Ubuntu 22.04+) und dort `sudo`-Rechte habt.
+Ihr müsst dafür kein Python, kein Docker und keine Datenbank kennen — das übernimmt
+alles der Container.
+
+**Was danach läuft**: RZ-CheckIn steckt komplett in einem einzigen "Container" — einer
+Art abgeschlossener Mini-Umgebung, die die Anwendung samt allem, was sie braucht, schon
+enthält. Ihr installiert auf dem Server nur das Werkzeug, das diesen Container ausführt
+(**Podman**, siehe Schritt 1); alles andere bringt der Container mit.
+
+### Schritt 1: Podman installieren
+
+```bash
+sudo apt update
+sudo apt install -y podman git
+```
+
+Andere Distribution? Fedora/RHEL/Rocky: `sudo dnf install -y podman git`; Arch:
+`sudo pacman -S podman git`.
+
+Kurzer Test, ob es geklappt hat: `podman --version` sollte eine Versionsnummer ausgeben.
+
+### Schritt 2: Projekt holen und das Container-Image bauen
+
+```bash
+git clone https://github.com/Volltext/RZ-CheckIn.git
+cd RZ-CheckIn
+podman build -t rz-checkin:latest -f Containerfile .
+```
+
+Der letzte Befehl dauert beim ersten Mal ein bis zwei Minuten (lädt einmalig eine
+Python-Basis herunter, danach nur noch Sekunden bei erneuten Builds). Am Ende sollte
+`podman images` eine Zeile mit `localhost/rz-checkin` bzw. `rz-checkin` zeigen.
+
+> **Server ganz ohne Internetzugang?** Dann braucht ihr diesen Schritt auf dem
+> Zielserver nicht — Image auf einem anderen Rechner bauen und übertragen, siehe
+> ["Deployment ohne Internetzugang auf dem Server"](#deployment-ohne-internetzugang-auf-dem-server-air-gapped)
+> weiter unten. Alles ab Schritt 3 hier funktioniert danach identisch.
+
+### Schritt 3: Container starten
+
+```bash
+podman run -d --name rz-checkin \
+  -p 8000:8000 \
+  -v rz_checkin_data:/data \
+  --restart on-failure \
+  rz-checkin:latest
+```
+
+Kurz erklärt, was diese eine Zeile bewirkt:
+
+| Teil | Bedeutung |
+|---|---|
+| `-d` | startet den Container im Hintergrund (statt das Terminal zu blockieren) |
+| `--name rz-checkin` | Name, unter dem ihr den Container später wiederfindet (`podman ps`, `podman logs rz-checkin`, ...) |
+| `-p 8000:8000` | macht ihn unter Port 8000 des Servers von außen erreichbar |
+| `-v rz_checkin_data:/data` | legt Datenbank + Zugangsdaten dauerhaft in einem benannten Volume ab — überlebt Neustarts und Updates |
+| `--restart on-failure` | startet den Container automatisch neu, falls er abstürzt |
+| `rz-checkin:latest` | das eben gebaute (oder geladene) Image |
+
+Prüfen, ob er läuft: `podman ps` sollte `rz-checkin` mit Status `Up ...` auflisten.
+
+### Schritt 4: Admin-Zugangsdaten auslesen
+
+Beim allerersten Start wird automatisch ein Admin-Zugang mit zufälligem Passwort
+angelegt — es ist **nichts weiter zu konfigurieren**. Die Zugangsdaten stehen einmalig
+in den Logs:
+
+```bash
+podman logs rz-checkin | grep -A3 Erststart
+```
+
+Die Ausgabe sieht ungefähr so aus:
+
+```
+========================================================================
+RZ-CheckIn: Erststart -- Admin-Zugang wurde automatisch angelegt:
+  Benutzername: admin
+  Passwort:     ab12cd34ef56...
+  Bitte nach der ersten Anmeldung unter /admin/passwort aendern!
+========================================================================
+```
+
+Diese Zugangsdaten jetzt notieren — sie erscheinen wirklich nur beim allerersten Start
+und lassen sich später nicht erneut anzeigen (siehe
+["Admin-Passwort vergessen"](#problemlösung-häufige-stolpersteine), falls sie doch mal
+verloren gehen).
+
+### Schritt 5: Im Browser öffnen
+
+Die IP-Adresse des Servers herausfinden (auf dem Server ausführen): `hostname -I` — die
+erste ausgegebene Adresse ist meist die richtige.
+
+- **Kiosk-Oberfläche** (läuft später am Eingang des Rechenzentrums):
+  `http://<server-ip>:8000/`
+- **Admin-Bereich**: `http://<server-ip>:8000/admin` — mit den Zugangsdaten aus Schritt
+  4 einloggen und **sofort** unter "Eigenes Passwort" ein neues, eigenes Passwort
+  setzen.
+
+### Schritt 6 (empfohlen): Autostart nach einem Server-Neustart
+
+`--restart on-failure` aus Schritt 3 startet den Container neu, wenn er selbst
+abstürzt — startet aber der ganze Server neu (Stromausfall, Wartungsfenster), muss
+Podman erst wissen, dass es seine Container wieder hochfahren soll:
+
+```bash
+sudo systemctl enable --now podman-restart.service
+```
+
+Das reicht für den normalen Betrieb. Wer es robuster mag (eigene systemd-Unit mit
+Healthcheck, sauberer Neustart bei Absturz, getrennte Konfigurationsdatei für Secrets),
+findet die Podman-Quadlet-Variante unter
+["Produktivbetrieb mit systemd (Podman-Quadlet)"](#produktivbetrieb-mit-systemd-podman-quadlet).
+
+### Fertig — was jetzt?
+
+- Für jeden Technikraum bzw. Kiosk-PC im Admin-Bereich unter **"Agenten"** einen
+  Reader-Agenten anlegen (der API-Key wird dabei einmalig angezeigt) — siehe
+  `agent/README.md` für die Einrichtung auf dem Windows-Kiosk-PC mit dem Kartenleser
+  und `deploy/KIOSK.md` für den Browser im Kiosk-Modus.
+- Titel im Kiosk-Header anpassen: Umgebungsvariable `RZ_SITE_TITLE` (siehe
+  ["Eigene Konfiguration"](#eigene-konfiguration-umgebungsvariablen)).
+- Läuft alles wie gewünscht, lohnt sich ein Blick in
+  ["Deployment (Referenz & Produktivbetrieb)"](#deployment-referenz--produktivbetrieb)
+  weiter unten für Reverse-Proxy/TLS, Backups und den Retention-Wartungsjob.
+
+### Problemlösung (häufige Stolpersteine)
+
+- **Seite im Browser nicht erreichbar**: Läuft der Container überhaupt?
+  `podman ps` sollte `rz-checkin` mit Status `Up` zeigen (steht dort `Exited`, siehe
+  nächster Punkt). Falls er läuft: Firewall auf dem Server prüfen — Port 8000 muss vom
+  Client-Netz aus erreichbar sein, z. B. `sudo ufw allow 8000/tcp` bei aktivierter
+  UFW-Firewall unter Ubuntu/Debian.
+- **`podman: command not found`**: Podman ist nicht (oder nicht erfolgreich) installiert
+  — Schritt 1 wiederholen, ggf. vorher `sudo apt update` erneut ausführen.
+- **Container startet nicht oder stürzt sofort wieder ab**: Logs ansehen —
+  `podman logs rz-checkin` zeigt die Fehlermeldung. Häufigster Grund: Port 8000 ist auf
+  dem Server bereits belegt (`-p 8000:8000` ändern, z. B. `-p 8080:8000`, dann über
+  `http://<server-ip>:8080/` erreichbar).
+- **Admin-Passwort vergessen**: Ein zusätzlicher Admin-User lässt sich jederzeit direkt
+  im laufenden Container anlegen (ersetzt nicht das alte Passwort, gibt aber sofort
+  wieder Zugriff):
+  ```bash
+  podman exec -it rz-checkin python -m app.cli create-admin --username admin2
+  ```
+  Fragt interaktiv nach einem neuen Passwort; danach mit `admin2` einloggen.
+- **Nach einem Update oder Neustart sind alle Daten weg**: Das Volume
+  `rz_checkin_data` wurde vermutlich nicht mit angegeben. Mit `podman volume ls`
+  prüfen, ob es das Volume noch gibt — falls ja, ist es nur nicht korrekt eingebunden
+  (`-v rz_checkin_data:/data` beim `podman run` nicht vergessen).
+- **Von vorne anfangen** (nur zum Ausprobieren, **niemals im Produktivbetrieb mit
+  echten Daten** — löscht unwiderruflich alles!):
+  ```bash
+  podman rm -f rz-checkin
+  podman volume rm rz_checkin_data
+  ```
+
 ## Kiosk-Oberfläche
 
-Die Startseite (`/`) ist zweigeteilt:
+Die Startseite (`/`) zeigt oben den Scan-Status sowie den Button für externe Besucher,
+darunter eine Split-Ansicht mit einer Spalte je Technikraum:
 
-- **Links**: Live-Übersicht.
-  - *Mitarbeiter (intern)*: nur die Anzahl der aktuell Anwesenden, dargestellt als
-    grüner Punkt + Zähler (kein Name, keine Kartennummer — siehe Datensparsamkeit oben).
-    Ein manuelles Auschecken einzelner Mitarbeiter gibt es am Kiosk deshalb bewusst
-    nicht mehr; dafür gibt es das automatische Auschecken nach Zeitablauf sowie bei
-    Bedarf den Admin-Bereich (`/admin/mitarbeiter`).
-  - *Externe Besucher*: wie bisher eine Liste mit Name/Firma/Zeit und
-    "Auschecken"-Button pro Zeile (z. B. wenn jemand vergessen hat, sich abzumelden).
-- **Rechts**: Scan-Bereich. Im Ruhezustand zeigt er ein "Bereit zum Einlesen"-Icon; nach
-  einem Scan erscheint dort für ein paar Sekunden das Ergebnis (eingecheckt/ausgecheckt,
-  mit Ton) und darunter der Button für externe Besucher.
+- **Scan-Bereich**: im Ruhezustand nur ein kleines "Bereit zum Einlesen"-Icon (bewusst
+  minimal, der Platz gehört der Raum-Übersicht); nach einem Scan erscheint dort für ein
+  paar Sekunden das Ergebnis (eingecheckt/ausgecheckt, mit Ton).
+- **Ein Kärtchen pro Technikraum** (ein Eintrag pro angelegtem Reader-Agenten, siehe
+  "Mehrere Technikräume" unten):
+  - *Mitarbeiter (intern)*: nur die Anzahl der aktuell in diesem Raum Anwesenden,
+    dargestellt als grüner Punkt + Zähler (kein Name, keine Kartennummer — siehe
+    Datensparsamkeit oben). Ein manuelles Auschecken einzelner Mitarbeiter gibt es am
+    Kiosk deshalb bewusst nicht mehr; dafür gibt es das automatische Auschecken nach
+    Zeitablauf sowie bei Bedarf den Admin-Bereich (`/admin/mitarbeiter` — Kartenverwaltung
+    für Mitarbeiter, aktuell ohne eigenen Menüpunkt in der Navigation, aber weiterhin
+    unter dieser Adresse erreichbar).
+  - *Externe Besucher*: eine Liste mit Name/Firma/Zeit und "Auschecken"-Button pro Zeile
+    (z. B. wenn jemand vergessen hat, sich abzumelden).
+  - Personen ohne (mehr) gültige Raumzuordnung (z. B. Alteinträge von vor Einführung
+    dieser Funktion) landen in einem zusätzlichen Kärtchen "Ohne Raumzuordnung".
 - **Neue Dienstausweise**: hält jemand eine noch unbekannte Karte an den Reader, zeigt
   der Scan-Bereich statt einer Fehlermeldung einen Hinweis mit einem
   "Registrieren"-Button — ein Klick legt die Kartennummer an und checkt sofort ein, ganz
   ohne Umweg über den Admin-Bereich und **ohne Namenseingabe**.
+- **Externe Besucher einchecken**: eigene, für Touch-Terminals optimierte Maske
+  (`/kiosk/besucher`) mit Suche nach vorhandenem Profil (im Admin-Bereich unter
+  "Einstellungen" an-/abschaltbar) und Formular für ein neues Profil; der
+  Bestätigen-Button sitzt oben (sticky), damit eine aufklappende Bildschirmtastatur ihn
+  nicht verdeckt.
+
+### Mehrere Technikräume über einen Server
+
+Ein Server kann mehrere Technikräume gleichzeitig loggen, wenn jeder Raum seinen
+eigenen Reader-Agenten hat (siehe `/admin/agenten`): die **Bezeichnung** des Agenten ist
+zugleich der Anzeigename des Raums in der Split-Ansicht oben, und jeder Scan dieses
+Agenten wird automatisch diesem Raum zugeordnet — eine eigene Raumverwaltung gibt es
+bewusst nicht, da ohnehin genau ein Agent pro Raum existiert.
+
+Externe Besucher haben keinen eigenen Reader; sie wählen den Raum stattdessen manuell
+beim Einchecken am Kiosk (`/kiosk/besucher`) über zwei große Touch-Karten, bevor sie
+gesucht oder neu angelegt werden. Bei nur einem angelegten Agenten entfällt die Auswahl
+(der einzige Raum wird automatisch übernommen), bei keinem läuft der Checkin wie bisher
+ganz ohne Raumzuordnung.
 
 ## Projektstruktur
 
 ```
 app/            FastAPI-Anwendung (läuft im Container)
   routers/      api_agent, api_public (inkl. /health), kiosk, admin
-  services/     attendance (Toggle-Logik), retention, export, visitors, feedback
+  services/     attendance (Toggle-Logik), retention, export, visitors, feedback, settings
   templates/    Jinja2-Templates (kiosk/, admin/)
   static/       CSS + minimales eigenes JS (kein CDN, siehe unten)
   cli.py        python -m app.cli {create-admin, create-agent, purge}
@@ -118,16 +304,20 @@ Jeder Test läuft gegen eine frische, temporäre SQLite-Datenbank (siehe
   DSGVO-Löschung entfernt die Zeile, das Log bleibt unangetastet (siehe unten).
 - `checklog` — append-only, `person_type` + `person_id` (kein FK, polymorpher Verweis),
   `action` (checkin/checkout), `source` (`rfid`/`manual`/`auto` — Letzteres fürs
-  automatische Auschecken). Der aktuelle "wer ist drin"-Status wird immer aus dem
-  letzten Eintrag pro Person **abgeleitet**, nie separat gepflegt
+  automatische Auschecken), `raum` (Technikraum des Eintrags, siehe "Mehrere
+  Technikräume" oben — ebenfalls kein FK, sondern eine lose Referenz auf
+  `agents.agent_id`; `NULL` = keine Raumzuordnung). Der aktuelle "wer ist drin"-Status
+  wird immer aus dem letzten Eintrag pro Person **abgeleitet**, nie separat gepflegt
   (`app/services/attendance.py::list_present`).
-- `agents` — ein Eintrag pro Kiosk-PC, API-Key-Hash + `last_seen` für die
-  PRTG-Überwachung.
+- `agents` — ein Eintrag pro Kiosk-PC bzw. Technikraum, API-Key-Hash + `last_seen` für
+  die PRTG-Überwachung. Da pro Raum genau ein Agent existiert, dient der Eintrag
+  zugleich als Raumzuordnung für die Split-Ansicht (siehe oben) — es gibt bewusst kein
+  eigenes Raum-Modell dafür.
 - `unknown_scans` — unbekannte UIDs, die am Reader gescannt wurden, zur späteren
   Zuordnung im Admin-Bereich.
 - `settings` — Key-Value-Ablage für zur Laufzeit im Admin-Bereich änderbare
-  Einstellungen (aktuell: `auto_checkout_hours`, siehe unten), im Unterschied zu
-  `app/config.py` (Umgebungsvariablen, nur beim Start gelesen).
+  Einstellungen (aktuell: `auto_checkout_hours`, `besucher_suche_aktiv`, siehe unten),
+  im Unterschied zu `app/config.py` (Umgebungsvariablen, nur beim Start gelesen).
 
 ### Automatisches Auschecken
 
@@ -139,6 +329,14 @@ ist als `source=auto`, `operator="System (automatisch)"` erkennbar. Geprüft wir
 `RZ_AUTO_CHECKOUT_CHECK_INTERVAL_SECONDS` (Standard 5 Minuten) — siehe
 `app/services/attendance.py::run_auto_checkout`.
 
+### Besuchersuche an-/abschalten
+
+Ebenfalls unter `/admin/einstellungen`: ob die Kiosk-Maske für externe Besucher
+(`/kiosk/besucher`) zuerst nach einem vorhandenen Profil suchen lässt, bevor ein neues
+angelegt wird (Standard: an). Deaktiviert zeigt die Seite direkt nur das Formular zum
+Neuanlegen — z. B. sinnvoll, wenn grundsätzlich jeder Besuch als neues Profil erfasst
+werden soll.
+
 ### Schema-Migration bestehender Installationen
 
 Es gibt bewusst kein separates Migrationswerkzeug (Alembic o.ä.) — beim Start
@@ -146,8 +344,11 @@ Es gibt bewusst kein separates Migrationswerkzeug (Alembic o.ä.) — beim Start
 noch vorhandenen Namensfeldern aus einer Version vor dieser Datenschutz-Anpassung) und
 hebt es automatisch auf den aktuellen Stand: Namen werden dabei bewusst **nicht**
 übernommen (genau das ist die fachliche Vorgabe), alle anderen Daten (Kartennummern,
-Log-Einträge) bleiben vollständig erhalten. Vor einem Update auf eine Version mit
-Datenmodelländerungen trotzdem ein reguläres Backup ziehen (siehe Abschnitt "Backup").
+Log-Einträge) bleiben vollständig erhalten. Rein additive Änderungen (z. B. die
+nullable Spalte `checklog.raum` für die Technikraum-Zuordnung) zieht `init_db()`
+einfacher per `ALTER TABLE ... ADD COLUMN` nach, ohne dass dafür eine Tabelle umbenannt
+werden muss. Vor einem Update auf eine Version mit Datenmodelländerungen trotzdem ein
+reguläres Backup ziehen (siehe Abschnitt "Backup").
 
 ### Append-only-Schutz
 
@@ -175,62 +376,77 @@ und regelmäßige, unveränderliche Backups.
   verwaiste Besucherprofile (keine verbleibenden Log-Einträge mehr).
 - Hinweistext für Besucher: dauerhaft im Fußbereich der Kiosk-Startseite.
 
-## Deployment
+## Deployment (Referenz & Produktivbetrieb)
 
-### Super-easy: fertiges Image laden und starten
+Wer noch keinen laufenden Server hat: erst den
+["Schnellstart"](#schnellstart-server-in-10-minuten-aufsetzen) oben durchgehen. Dieser
+Abschnitt vertieft einzelne Themen für den dauerhaften Produktivbetrieb.
 
-Für den schnellen Test oder ein Deployment ohne Build-Toolchain auf dem Server: ein
-exportiertes Image-Tar laden und direkt starten. Session-Secret und ein erster
-Admin-Zugang werden beim allerersten Start automatisch erzeugt (siehe unten) — es ist
-**nichts weiter zu konfigurieren**.
+### Eigene Konfiguration (Umgebungsvariablen)
+
+Alle Einstellungen laufen über Umgebungsvariablen mit Präfix `RZ_`, vollständige
+Übersicht mit Erklärung in `.env.example`. Beim `podman run` per `-e` einzeln setzen
+(z. B. `-e RZ_SITE_TITLE="Relaisstelle Musterberg"`) oder gesammelt über eine
+Env-Datei:
 
 ```bash
-podman load -i rz-checkin-image.tar.gz
+podman run -d --name rz-checkin \
+  -p 8000:8000 \
+  -v rz_checkin_data:/data \
+  --env-file /etc/rz-checkin/rz-checkin.env \
+  --restart on-failure \
+  rz-checkin:latest
+```
+
+Die wichtigsten Variablen für den Einstieg:
+
+| Variable | Bedeutung | Standard |
+|---|---|---|
+| `RZ_SITE_TITLE` | Titel im Kiosk-Header | `Rechenzentrum Check-in` |
+| `RZ_SESSION_SECRET` | Geheimwert zum Signieren der Admin-Session — ohne explizite Angabe wird beim Erststart automatisch einer erzeugt und auf dem Volume abgelegt (siehe `docker-entrypoint.sh`); für kontrollierte Deployments trotzdem selbst setzen (`openssl rand -hex 32`) | automatisch erzeugt |
+| `RZ_ADMIN_PASSWORD` | Passwort für den automatisch angelegten Erst-Admin | leer → zufällig, siehe Schnellstart Schritt 4 |
+| `RZ_AUTO_CHECKOUT_DEFAULT_HOURS` | Startwert fürs automatische Auschecken (danach zur Laufzeit unter "Einstellungen" änderbar) | `12` |
+| `RZ_RETENTION_DAYS` | Aufbewahrungsfrist für Log-Einträge | `730` (2 Jahre) |
+| `RZ_ADMIN_IP_ALLOWLIST` | Kommagetrennte IPs/CIDRs, die zusätzlich zum Login auf `/admin` zugreifen dürfen | leer = keine Einschränkung |
+
+### Updates einspielen
+
+```bash
+cd RZ-CheckIn
+git pull
+podman build -t rz-checkin:latest -f Containerfile .
+podman stop rz-checkin
+podman rm rz-checkin
 podman run -d --name rz-checkin \
   -p 8000:8000 \
   -v rz_checkin_data:/data \
   --restart on-failure \
   rz-checkin:latest
-
-# Admin-Zugangsdaten aus den Logs des allerersten Starts holen:
-podman logs rz-checkin | grep -A3 Erststart
 ```
 
-Danach ist die Kiosk-Oberfläche unter `http://<server>:8000/` erreichbar, der
-Admin-Bereich unter `http://<server>:8000/admin` (Zugangsdaten siehe oben, direkt nach
-dem ersten Login unter `/admin/passwort` ändern). `-v rz_checkin_data:/data` sorgt
-dafür, dass die SQLite-Datenbank und das automatisch erzeugte Session-Secret einen
-Container-Neustart oder -Update überleben — beim Neustart erscheinen dann keine neuen
-Zugangsdaten mehr in den Logs, der bestehende Admin bleibt gültig.
+`podman rm` entfernt nur den Container selbst, nicht das Volume `rz_checkin_data` —
+alle Besucherprofile, Log-Einträge und Zugangsdaten bleiben erhalten. Schema-Änderungen
+migriert die Anwendung beim Start automatisch (siehe "Schema-Migration bestehender
+Installationen" oben); vor einem größeren Update trotzdem ein Backup ziehen (siehe
+"Backup" unten). Läuft der Container über die Quadlet-Unit (siehe unten), reicht
+stattdessen `systemctl restart rz-checkin.service` nach dem `podman build`.
 
-Reader-Agenten (für die Kiosk-PCs) werden anschließend ganz normal im Admin-Bereich
-unter "Agenten" angelegt (siehe `agent/README.md`).
+### Produktivbetrieb mit systemd (Podman-Quadlet)
 
-Das Image-Tar selbst erzeugt man auf einer Maschine mit Build-Werkzeug einmalig aus dem
-Quellcode und verteilt es dann z. B. per USB-Stick oder internem Fileshare an den
-Zielserver (kein Registry-Zugriff auf dem Server nötig):
-
-```bash
-podman build -t rz-checkin:latest -f Containerfile .
-podman save rz-checkin:latest -o rz-checkin-image.tar.gz --format docker-archive
-# oder mit Docker gebaut: docker save rz-checkin:latest | gzip > rz-checkin-image.tar.gz
-```
-
-### Server (Podman, ein Container) — aus dem Quellcode bauen
-
-```bash
-podman build -t rz-checkin:latest -f Containerfile .
-```
-
-Für den dauerhaften Betrieb die Podman-Quadlet-Unit verwenden (Autostart,
-`Restart=on-failure`, kein eigenes Compose nötig):
+Robuster als das einfache `--restart on-failure` aus dem Schnellstart: eine
+Podman-Quadlet-Unit (Autostart auch nach Server-Neustart, `Restart=on-failure`,
+Healthcheck, keine eigene Compose-Datei nötig).
 
 1. `deploy/rz-checkin.container` nach `/etc/containers/systemd/` kopieren und anpassen
    (Image-Quelle, `EnvironmentFile`).
 2. Optional: eigene Secrets (`RZ_SESSION_SECRET`, `RZ_ADMIN_PASSWORD`, ...) in
    `/etc/rz-checkin/rz-checkin.env` ablegen, Dateirechte einschränken (`chmod 600`).
-   Ohne diese Datei funktioniert der Start trotzdem — siehe "Super-easy" oben.
+   Ohne diese Datei funktioniert der Start trotzdem — siehe Schnellstart oben.
 3. `systemctl daemon-reload && systemctl start rz-checkin.service`
+
+Läuft der Container schon aus dem Schnellstart heraus per `podman run`, vorher mit
+`podman rm -f rz-checkin` entfernen (das Volume `rz_checkin_data` bleibt dabei
+erhalten) — die Quadlet-Unit legt ihn danach neu an.
 
 Retention-Wartungsjob: `deploy/rz-checkin-retention.service` +
 `deploy/rz-checkin-retention.timer` nach `/etc/systemd/system/` kopieren, dann
@@ -239,6 +455,42 @@ täglicher Job getrennt von der Anwendung.
 
 Optionaler Reverse-Proxy mit eigenem TLS-Zertifikat: `deploy/nginx-rz-checkin.conf`.
 
+### Deployment ohne Internetzugang auf dem Server (air-gapped)
+
+Steht der Server komplett ohne Internetzugang im internen Netz, entfällt Schritt 2 des
+Schnellstarts (`git clone` + `podman build` brauchen Internetzugang). Stattdessen das
+Image auf einer Maschine **mit** Internetzugang bauen und als Datei übertragen:
+
+```bash
+# Auf der Build-Maschine (mit Internetzugang):
+git clone https://github.com/Volltext/RZ-CheckIn.git
+cd RZ-CheckIn
+podman build -t rz-checkin:latest -f Containerfile .
+podman save rz-checkin:latest -o rz-checkin-image.tar.gz --format docker-archive
+# oder mit Docker gebaut: docker save rz-checkin:latest | gzip > rz-checkin-image.tar.gz
+```
+
+Die Datei `rz-checkin-image.tar.gz` per USB-Stick oder internem Fileshare auf den
+Zielserver übertragen, dort laden und wie im Schnellstart ab Schritt 3 weitermachen:
+
+```bash
+podman load -i rz-checkin-image.tar.gz
+podman run -d --name rz-checkin \
+  -p 8000:8000 \
+  -v rz_checkin_data:/data \
+  --restart on-failure \
+  rz-checkin:latest
+```
+
+Reader-Agenten (für die Kiosk-PCs) werden anschließend ganz normal im Admin-Bereich
+unter "Agenten" angelegt (siehe `agent/README.md`).
+
+Auch der Reader-Agent selbst und der Kiosk-PC sind für den Betrieb ganz ohne
+Internetzugang ausgelegt (siehe `agent/README.md` Abschnitt 6, "Wheelhouse"); die
+Web-Oberfläche lädt zudem kein CDN/keine externen Schriften (siehe
+["Frontend-Technologie"](#frontend-technologie)) und funktioniert komplett aus dem
+Server heraus.
+
 ### Backup
 
 Die SQLite-Datei liegt auf dem Podman-Volume. Einfachste Variante: den Container kurz
@@ -246,6 +498,9 @@ stoppen und die Datei kopieren, oder SQLites Online-Backup-API bei laufendem Bet
 nutzen (z. B. `sqlite3 /pfad/zur/db ".backup /pfad/zum/backup.db"` — funktioniert auch
 während des laufenden Containers, da SQLite dafür ausgelegt ist). Backups regelmäßig per
 Cronjob auf dem Host anlegen und **außerhalb** des Containers/Hosts aufbewahren.
+
+Die eigentliche Datei liegt innerhalb des Volumes; ihren Pfad auf dem Host findet man
+mit `podman volume inspect rz_checkin_data`.
 
 ### Kiosk-PC (Windows)
 
@@ -257,28 +512,10 @@ Systray-.exe für den normalen Autostart, inkl. air-gapped Build-Anleitung).
 
 Siehe `docs/PRTG.md`.
 
-## Air-Gapped-Betrieb
-
-Server und Kiosk-PC sind für den Betrieb ganz ohne Internetzugang ausgelegt:
-
-- **Server**: Das Container-Image wird auf einer Maschine mit Internetzugang einmalig
-  gebaut und als Tar exportiert (`podman save`), dann per USB-Stick/internem Fileshare
-  auf den Zielserver übertragen und dort per `podman load` gestartet — kein
-  Registry-Zugriff auf dem Server nötig (siehe "Super-easy Deployment" oben).
-- **Reader-Agent**: dieselbe Idee als "Wheelhouse" (vorab heruntergeladene
-  Python-Pakete) — einmal auf einem Rechner mit Internetzugang vorbereiten
-  (`agent/prepare_wheelhouse.ps1`), Ordner übertragen, damit air-gapped installieren
-  bzw. die `.exe` bauen (`agent/build_exe.ps1 -Wheelhouse ...`). Details in
-  `agent/README.md` Abschnitt 6. Die fertige `.exe` selbst braucht auf dem Kiosk-PC
-  danach keinerlei Netzwerkzugriff mehr.
-- Kein CDN-Import im Frontend, keine externen Schriften/Icons (siehe
-  "Frontend-Technologie" unten) — die Web-Oberfläche funktioniert komplett aus dem
-  Server heraus.
-
 ## Sicherheitsannahmen
 
 - Rein internes Tool: kein Internetzugang für Server oder Kiosk-PC nötig, Betrieb im
-  internen VLAN (siehe "Air-Gapped-Betrieb" oben).
+  internen VLAN (siehe "Deployment ohne Internetzugang auf dem Server" oben).
 - Kiosk-Oberfläche (`/`, `/kiosk/...`) ist bewusst ohne Login — sie steht am Kiosk-PC vor
   Ort und ihre Nutzung (Live-Übersicht einsehen, Besucher ein-/auschecken, neue
   Dienstausweise registrieren) ist nicht schützenswert im gleichen Sinn wie der
@@ -301,9 +538,9 @@ Server und Kiosk-PC sind für den Betrieb ganz ohne Internetzugang ausgelegt:
 - **Automatischer Admin-Bootstrap**: Ist beim allerersten Start kein `RZ_ADMIN_PASSWORD`
   gesetzt, legt der Container selbst einen Admin mit einem zufälligen Passwort an und
   zeigt es einmalig in den Logs (`podman logs`) an — damit ist ein frisch gestarteter
-  Container ohne weitere Einrichtung sofort nutzbar (siehe "Super-easy Deployment"
-  oben). Wer das nicht möchte (z. B. automatisiertes Deployment mit separat
-  provisioniertem Admin), setzt `RZ_ADMIN_AUTO_BOOTSTRAP=false`.
+  Container ohne weitere Einrichtung sofort nutzbar (siehe Schnellstart oben). Wer das
+  nicht möchte (z. B. automatisiertes Deployment mit separat provisioniertem Admin),
+  setzt `RZ_ADMIN_AUTO_BOOTSTRAP=false`.
 
 ## Frontend-Technologie
 

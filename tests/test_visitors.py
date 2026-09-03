@@ -7,6 +7,7 @@ from sqlalchemy import select
 
 from app.models import CheckLog, Visitor
 from app.services.attendance import checkin_visitor, checkout_person, is_present
+from app.services.settings import set_besucher_suche_aktiv
 from app.services.visitors import VisitorCurrentlyPresentError, delete_visitor
 from tests.factories import make_visitor
 
@@ -38,6 +39,26 @@ def test_visitor_search_via_kiosk_endpoint(client, db):
     response = client.get("/kiosk/besucher/suche-partial", params={"q": "Musterfrau"})
     assert response.status_code == 200
     assert "Erika Musterfrau" in response.text
+
+
+def test_visitor_search_input_shown_on_besucher_page_by_default(client, db):
+    response = client.get("/kiosk/besucher")
+    assert "Vorhandenes Profil suchen" in response.text
+
+
+def test_visitor_search_input_hidden_when_disabled_in_settings(client, db):
+    set_besucher_suche_aktiv(db, False)
+    response = client.get("/kiosk/besucher")
+    assert "Vorhandenes Profil suchen" not in response.text
+    assert "Neues Besucherprofil anlegen" in response.text
+
+
+def test_visitor_search_partial_returns_no_hits_when_disabled(client, db):
+    make_visitor(db, vorname="Erika", nachname="Musterfrau", firma="ACME")
+    set_besucher_suche_aktiv(db, False)
+    response = client.get("/kiosk/besucher/suche-partial", params={"q": "Musterfrau"})
+    assert response.status_code == 200
+    assert "Erika Musterfrau" not in response.text
 
 
 def test_visitor_create_via_kiosk_checks_in(client):

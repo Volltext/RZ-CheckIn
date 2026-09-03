@@ -86,6 +86,14 @@ class CheckLog(Base):
     # zusätzliches index=True, sonst legt SQLAlchemy denselben Indexnamen doppelt an.
     timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
     operator: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    # Technikraum, in dem der Scan/die Aktion stattfand -- als lose Referenz auf
+    # Agent.agent_id (kein FK, analog zu person_type/person_id: löscht der Admin den
+    # Agenten später, bleibt der Log-Eintrag trotzdem lesbar erhalten, siehe
+    # app/services/attendance.py::presence_by_room). Bei Mitarbeitern kommt der Wert vom
+    # scannenden Reader-Agenten (ein Agent pro Raum), bei Besuchern aus der
+    # Raumauswahl am Kiosk (app/routers/kiosk.py). NULL = keine Raumzuordnung (z. B.
+    # Alteinträge vor Einführung dieser Funktion).
+    raum: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
     # Bewusst KEIN Namens-Snapshot hier: das Log ist append-only und wird beim Löschen
     # eines Besucherprofils (DSGVO) nicht angefasst ("Log bleibt unangetastet"). Ist die
@@ -95,7 +103,13 @@ class CheckLog(Base):
 
 class Agent(Base):
     """Reader-Agenten am Kiosk-PC. `agent_id` ist eine sprechende ID (z.B. 'kiosk1'),
-    kein UUID, damit sie in der PRTG-URL und der Agent-Konfiguration lesbar bleibt."""
+    kein UUID, damit sie in der PRTG-URL und der Agent-Konfiguration lesbar bleibt.
+
+    Da pro Technikraum genau ein Agent existiert, dient der Agent-Eintrag zugleich als
+    Raumzuordnung für die Split-Ansicht im Kiosk-Dashboard: `bezeichnung` ist der
+    Anzeigename des Raums, `agent_id` der Wert, der auf CheckLog.raum landet (siehe
+    app/services/attendance.py::presence_by_room). Es gibt bewusst kein eigenes
+    Raum-Modell dafür."""
 
     __tablename__ = "agents"
 

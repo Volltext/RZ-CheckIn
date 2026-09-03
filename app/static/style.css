@@ -76,23 +76,28 @@ main {
   width: 100%;
 }
 
-/* Kiosk-Startseite: links Übersicht/Auschecken, rechts Scan-Bereich/Externe. */
-main.kiosk-grid {
+/* Kiosk-Startseite: Scan-Feedback + Besucher-Button oben, darunter die Split-Ansicht
+   (ein Kärtchen pro Technikraum = pro Agent, siehe app/routers/kiosk.py::_room_context). */
+.kiosk-rooms {
   display: grid;
-  grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
-  gap: 2rem;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1.5rem;
   align-items: start;
-  max-width: 1300px;
 }
-@media (max-width: 900px) {
-  main.kiosk-grid { grid-template-columns: 1fr; }
+.kiosk-rooms-hinweis { grid-column: 1 / -1; }
+
+.kiosk-room {
+  background: var(--farbe-flaeche);
+  border-radius: 0.75rem;
+  padding: 1.3rem 1.5rem;
 }
-.kiosk-col-scan { display: flex; flex-direction: column; gap: 1.5rem; }
+.kiosk-room h2 { margin: 0 0 0.8rem; font-size: 1.3rem; }
+.kiosk-room h3 { margin: 1.2rem 0 0.4rem; font-size: 1rem; }
 
 .kiosk-buttons {
   display: flex;
   gap: 1rem;
-  margin: 0;
+  margin: 0 0 1.5rem;
   flex-wrap: wrap;
 }
 
@@ -105,8 +110,11 @@ main.kiosk-grid {
   cursor: pointer;
   text-decoration: none;
   text-align: center;
+  touch-action: manipulation;
 }
+body.kiosk .button, body.kiosk button { min-height: 3.2rem; }
 .button-klein { padding: 0.4rem 0.8rem; font-size: 0.85rem; border-radius: 0.4rem; }
+body.kiosk .button.button-klein { min-height: 0; }
 
 .button-primary { background: var(--farbe-akzent); color: white; }
 .button-erfolg { background: var(--farbe-erfolg); color: white; }
@@ -118,10 +126,11 @@ th, td { text-align: left; padding: 0.6rem 0.8rem; border-bottom: 1px solid rgba
 body:not(.kiosk) th, body:not(.kiosk) td { border-bottom: 1px solid var(--admin-rand); }
 
 #feedback-banner {
-  min-height: 11rem;
+  min-height: 5.5rem;
   display: flex;
   align-items: center;
   justify-content: center;
+  margin-bottom: 1.5rem;
 }
 
 .feedback {
@@ -140,17 +149,15 @@ body:not(.kiosk) th, body:not(.kiosk) td { border-bottom: 1px solid var(--admin-
 .feedback-checkout { background: rgba(37, 99, 235, 0.25); border: 1px solid var(--farbe-akzent); }
 .feedback-fehler { background: rgba(220, 38, 38, 0.25); border: 1px solid var(--farbe-warnung); }
 
-/* Idle-Zustand: "bereit zum Einlesen", solange kein aktuelles Scan-Ereignis vorliegt. */
+/* Idle-Zustand: bewusst minimal gehalten (nur das Icon) -- der Platz gehört der
+   Raum-Übersicht darunter, nicht dem "bereit zum Einlesen"-Hinweis. */
 .feedback-idle {
-  width: 100%;
-  text-align: center;
-  padding: 2rem 1.5rem;
-  border: 1px dashed #475569;
-  border-radius: 0.75rem;
-  color: #cbd5e1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.6;
 }
-.scan-icon { width: 56px; height: 56px; color: #60a5fa; margin-bottom: 0.75rem; }
-.feedback-idle-titel { font-size: 1.15rem; font-weight: 600; margin: 0 0 0.5rem; color: var(--farbe-text-hell); }
+.scan-icon { width: 32px; height: 32px; color: #94a3b8; }
 .hinweis-klein { font-size: 0.8rem; color: #94a3b8; margin: 0; }
 
 /* Selbstregistrierung: unbekannte Karte -> Name eintragen. */
@@ -166,7 +173,6 @@ body:not(.kiosk) th, body:not(.kiosk) td { border-bottom: 1px solid var(--admin-
 
 /* Live-Übersicht: Mitarbeiter (intern) werden nur als Anzahl + grüne Punkte gezeigt,
    nie mit Namen (siehe app/services/attendance.py::PresentPerson). */
-.intern-presence { margin-bottom: 1.5rem; }
 .intern-count {
   display: flex;
   align-items: center;
@@ -190,6 +196,93 @@ footer.dsgvo-hinweis {
   font-size: 0.8rem;
   color: #94a3b8;
   border-top: 1px solid #334155;
+}
+
+/* Externer-Besucher-Maske: als eigener, schmalerer Block zentriert statt (wie der Rest
+   von <main>) linksbündig über die volle Breite -- wirkt sonst bei viel Platz auf dem
+   Bildschirm sehr linksbündig. Die Raumauswahl (zwei große Buttons nebeneinander)
+   braucht etwas mehr Breite als das Suchen/Anlegen-Formular darunter. */
+.kiosk-besucher { max-width: 480px; margin: 0 auto; }
+.kiosk-besucher-wahl { max-width: 640px; }
+
+/* Raumauswahl extra groß für Touch-Bedienung (Kiosk läuft ggf. an einem Touch-Terminal,
+   siehe README) -- als Karte mit Icon statt einem schlichten flachen Button. */
+.raum-wahl {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1.25rem;
+  margin: 1.5rem 0;
+}
+.raum-karte {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  padding: 2.75rem 1.5rem;
+  border-radius: 1rem;
+  background: linear-gradient(160deg, var(--farbe-flaeche) 0%, #16213a 100%);
+  border: 1px solid #334155;
+  color: var(--farbe-text-hell);
+  text-decoration: none;
+  touch-action: manipulation;
+  transition: transform 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
+}
+.raum-karte:hover, .raum-karte:focus-visible {
+  border-color: var(--farbe-akzent);
+  box-shadow: 0 0.5rem 1.5rem rgba(37, 99, 235, 0.25);
+  transform: translateY(-2px);
+}
+.raum-karte:active { transform: scale(0.97); }
+.raum-karte-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: 50%;
+  background: rgba(37, 99, 235, 0.18);
+  color: #60a5fa;
+}
+.raum-karte-icon svg { width: 1.6rem; height: 1.6rem; }
+.raum-karte-name { font-size: 1.3rem; font-weight: 600; text-align: center; }
+
+.raum-aktuell {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  font-size: 1.05rem;
+  margin: 0 0 1.5rem;
+}
+
+/* Kopfzeile über dem "Neues Profil"-Formular: hält den Bestätigen-Button oben und
+   sticky, damit er auch bei aufgeklappter Bildschirmtastatur (Touch-Terminal) erreichbar
+   bleibt, ohne die Tastatur erst schließen zu müssen. */
+.formular-kopf {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.5rem 0;
+  margin-bottom: 0.5rem;
+  background: var(--farbe-hintergrund);
+}
+.formular-kopf h2 { margin: 0; }
+
+.besucher-treffer { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 0.7rem; }
+.besucher-treffer .formular-inline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  width: 100%;
+  padding: 1rem 1.2rem;
+  background: var(--farbe-flaeche);
+  border-radius: 0.6rem;
+  font-size: 1.05rem;
 }
 
 /* Admin-Bereich */
@@ -227,6 +320,8 @@ form.formular input, form.formular select {
 body.kiosk form.formular input, body.kiosk form.formular select {
   background: #f8fafc;
   color: var(--farbe-text);
+  padding: 0.8rem 0.9rem;
+  font-size: 1.1rem;
 }
 form.formular-inline { display: inline; }
 

@@ -5,6 +5,7 @@
       <li>
         <form method="post" action="/kiosk/besucher/einchecken" class="formular-inline">
           <input type="hidden" name="visitor_id" value="{{ v.id }}">
+          <input type="hidden" name="raum" value="{{ raum }}">
           <span>{{ v.vorname }} {{ v.nachname }}{% if v.firma %} — {{ v.firma }}{% endif %}</span>
           <button type="submit" class="button button-erfolg">Einchecken</button>
         </form>

@@ -33,12 +33,20 @@ class ScanFeedbackEvent:
     name: str | None
     occurred_at: datetime
     uid: str | None = None
+    # Agent-ID des scannenden Readers (= Technikraum, siehe app/models.py::Agent).
+    # Wird bei der Registrierung einer unbekannten Karte (kiosk/_feedback.html) als
+    # Raum für den ersten Checkin-Eintrag mitgeschickt.
+    agent_id: str | None = None
 
 
-def push_event(result: str, name: str | None = None, *, uid: str | None = None) -> None:
+def push_event(
+    result: str, name: str | None = None, *, uid: str | None = None, agent_id: str | None = None
+) -> None:
     with _lock:
         _events.append(
-            ScanFeedbackEvent(result=result, name=name, occurred_at=datetime.now(timezone.utc), uid=uid)
+            ScanFeedbackEvent(
+                result=result, name=name, occurred_at=datetime.now(timezone.utc), uid=uid, agent_id=agent_id
+            )
         )
 
 
