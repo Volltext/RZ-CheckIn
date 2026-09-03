@@ -32,6 +32,23 @@ Server (VM, intern)                      Kiosk-PC (Eingang RZ)
 - **Append-only-Log**: `checklog` erlaubt auf DB-Ebene nur `INSERT`; `UPDATE`/`DELETE`
   sind per SQLite-Trigger blockiert (Ausnahme: der Retention-Wartungsjob, siehe unten).
 
+## Kiosk-Oberfläche
+
+Die Startseite (`/`) ist zweigeteilt:
+
+- **Links**: Live-Übersicht aller aktuell anwesenden Personen (Mitarbeiter + Externe),
+  jede Zeile mit einem "Auschecken"-Button für den manuellen Fall (z. B. wenn jemand
+  vergessen hat, die Karte beim Verlassen erneut vorzuhalten).
+- **Rechts**: Scan-Bereich. Im Ruhezustand zeigt er ein "Bereit zum Einlesen"-Icon; nach
+  einem Scan erscheint dort für ein paar Sekunden das Ergebnis (eingecheckt/ausgecheckt,
+  mit Ton) und darunter der Button für externe Besucher.
+- **Selbstregistrierung**: hält jemand eine noch unbekannte Karte an den Reader, zeigt
+  der Scan-Bereich statt einer Fehlermeldung direkt ein kleines Formular (Vor-/Nachname)
+  an — Absenden legt den Mitarbeiter an und checkt ihn sofort ein, ganz ohne Umweg über
+  den Admin-Bereich. Das Formular bleibt dabei bewusst länger stehen (90 statt 8
+  Sekunden) und wird nicht durch das Hintergrund-Polling überschrieben, solange dort
+  gerade getippt wird.
+
 ## Projektstruktur
 
 ```
@@ -207,6 +224,12 @@ Siehe `docs/PRTG.md`.
 - Kiosk-Oberfläche (`/`, `/kiosk/...`) ist bewusst ohne Login — sie steht am Kiosk-PC vor
   Ort und ihre Nutzung (Anwesenheitsliste einsehen, Besucher ein-/auschecken) ist nicht
   schützenswert im gleichen Sinn wie der Admin-Bereich.
+- **Selbstregistrierung von Mitarbeitern** (unbekannte Karte → Namen direkt am Kiosk
+  eintragen, siehe oben) folgt demselben Vertrauensmodell: wer physisch bis zum Reader
+  vordringt, darf ohnehin ins Rechenzentrum. Der Zutritt selbst wird weiterhin vom
+  bestehenden Zutrittssystem kontrolliert (Konzept: "steuert keine Türen") — die
+  Selbstregistrierung entscheidet nicht, wer reindarf, sondern nur, wie der Name zu
+  einer ohnehin gültigen Karte im Protokoll erscheint.
 - Admin-Bereich (`/admin/...`) ist Login-geschützt (Argon2-Passworthash, signierte
   Session-Cookies) und kann zusätzlich per `RZ_ADMIN_IP_ALLOWLIST` auf bestimmte
   Quell-IPs eingeschränkt werden.
@@ -231,3 +254,13 @@ Scan-Feedback) und Live-Suche. Bewusst kein CDN-Import (Kiosk-PC braucht laut Ko
 keinen Internetzugang) und keine Build-Pipeline. Zustandsändernde Aktionen
 (Besucher anlegen/ein-/auschecken, Admin-Formulare) laufen über normale HTML-Formulare
 mit Server-Redirect.
+
+**Dark Mode**: Der Admin-Bereich folgt automatisch der Farbschema-Einstellung des
+Betriebssystems/Browsers (`prefers-color-scheme`), kein manueller Umschalter nötig. Der
+Kiosk-Bildschirm bleibt bewusst immer dunkel (Wandmontage, aus der Distanz lesbar) und
+ändert sich nicht mit dem OS-Farbschema.
+
+**Polling & Formulare**: `app.js` überschreibt ein per Polling nachgeladenes Fragment
+nicht, solange der Nutzer gerade in einem darin enthaltenen Feld tippt (erkannt an
+Fokus *und* einem bereits eingegebenen Wert) — wichtig für die Selbstregistrierung, wo
+das Formular sonst während der Eingabe verschwinden könnte.
