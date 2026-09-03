@@ -43,7 +43,9 @@ def export_checklog_csv(db: Session, *, von: datetime | None, bis: datetime | No
     for entry in db.scalars(query):
         if entry.person_type == "employee":
             person = employees.get(entry.person_id)
-            name = person.voller_name if person else "(gelöschter Mitarbeiter)"
+            # Kein Name -- Mitarbeiter werden ausschließlich über die Dienstausweisnummer
+            # geführt (siehe app/models.py::Employee).
+            name = (person.rfid_uid or "(ohne Kartennummer)") if person else "(gelöschter Mitarbeiter-Eintrag)"
             firma = ""
         else:
             person = visitors.get(entry.person_id)

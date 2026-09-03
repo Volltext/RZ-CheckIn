@@ -15,11 +15,15 @@ agent_id = kiosk1
 ; mit eingeschränkten NTFS-Rechten versehen.
 api_key = BITTE-AUS-DEM-ADMIN-BEREICH-EINTRAGEN
 
-; PN532 als USB-Seriell-Board (empfohlen für Windows, siehe agent/README.md):
+; Referenzhardware: NFC-Kartenleser USB ACR122U-A9 (RFID). Vendor:Product 072f:2200
+; (ACS ACR122U) -- fest angeben statt nur "usb", damit der Agent nicht versehentlich ein
+; anderes USB-Gerät anspricht. Windows-Treiber-Setup siehe agent/README.md Abschnitt 1.
+reader = usb:072f:2200
+
+; Alternative: PN532-Board als USB-Seriell (UART, meldet sich als COM-Port):
 ;   reader = tty:COM3:pn532
-; Reines USB/HID-Board (braucht Zadig/libusb unter Windows):
+; Alternative: irgendein von nfcpy unterstützter USB-Leser (Auto-Erkennung):
 ;   reader = usb
-reader = tty:COM3:pn532
 
 ; Sekunden zwischen zwei Heartbeats (siehe /health/agent/{agent_id} für die
 ; PRTG-Überwachung).

@@ -24,7 +24,6 @@ ScanResult = str  # "checkin" | "checkout" | "unknown_card" | "card_inactive" | 
 @dataclass
 class RfidScanOutcome:
     result: ScanResult
-    name: str | None = None
     action_timestamp: datetime | None = None
 
 
@@ -32,7 +31,10 @@ class RfidScanOutcome:
 class PresentPerson:
     person_type: str
     person_id: str
-    name: str
+    # Für Mitarbeiter bewusst IMMER None -- intern wird ausschließlich über die
+    # Dienstausweisnummer geführt, es gibt keine gespeicherten Namen, die man hier
+    # anzeigen könnte (siehe app/models.py::Employee). Nur Besucher haben einen Namen.
+    name: str | None
     firma: str | None
     checkin_zeit: datetime
 
@@ -106,7 +108,7 @@ def list_present(db: Session) -> list[PresentPerson]:
                 PresentPerson(
                     person_type="employee",
                     person_id=row.person_id,
-                    name=employee.voller_name,
+                    name=None,  # bewusst kein Name -- siehe PresentPerson-Docstring
                     firma=None,
                     checkin_zeit=checkin_zeit,
                 )
@@ -155,7 +157,7 @@ def record_rfid_scan(
         return RfidScanOutcome(result="unknown_card")
 
     if not employee.aktiv:
-        return RfidScanOutcome(result="card_inactive", name=employee.voller_name)
+        return RfidScanOutcome(result="card_inactive")
 
     last = get_last_log_entry(db, "employee", employee.id)
     if last is not None:
@@ -163,7 +165,7 @@ def record_rfid_scan(
         if last_ts.tzinfo is None:
             last_ts = last_ts.replace(tzinfo=timezone.utc)
         if event_time - last_ts < timedelta(seconds=settings.scan_debounce_seconds):
-            return RfidScanOutcome(result="ignored", name=employee.voller_name)
+            return RfidScanOutcome(result="ignored")
 
     action = "checkout" if (last is not None and last.action == "checkin") else "checkin"
     entry = CheckLog(
@@ -175,7 +177,7 @@ def record_rfid_scan(
     )
     db.add(entry)
     db.commit()
-    return RfidScanOutcome(result=action, name=employee.voller_name, action_timestamp=event_time)
+    return RfidScanOutcome(result=action, action_timestamp=event_time)
 
 
 def checkin_visitor(db: Session, *, visitor_id: str) -> CheckLog:
@@ -189,20 +191,65 @@ def checkin_visitor(db: Session, *, visitor_id: str) -> CheckLog:
 
 
 def checkout_person(
-    db: Session, *, person_type: str, person_id: str, operator: str | None = None
+    db: Session,
+    *,
+    person_type: str,
+    person_id: str,
+    operator: str | None = None,
+    source: str = "manual",
 ) -> CheckLog:
     if not is_present(db, person_type, person_id):
         raise ValueError("Person ist nicht eingecheckt")
-    # RFID-Toggles laufen über record_rfid_scan(); diese Funktion bedient ausschließlich
-    # manuelle Auscheck-Aktionen (Kiosk-Button für Externe, ggf. Admin-Eingriff).
+    # RFID-Toggles laufen über record_rfid_scan(); diese Funktion bedient manuelle
+    # Auscheck-Aktionen (Kiosk-Button für Externe, Admin-Eingriff) sowie -- mit
+    # source="auto" -- das automatische Auschecken (siehe run_auto_checkout()).
     entry = CheckLog(
         person_type=person_type,
         person_id=person_id,
         action="checkout",
-        source="manual",
+        source=source,
         operator=operator,
     )
     db.add(entry)
     db.commit()
     db.refresh(entry)
     return entry
+
+
+def count_present_employees(db: Session) -> int:
+    """Anzahl aktuell anwesender Mitarbeiter für die Live-Übersicht am Kiosk -- dort
+    werden keine Namen mehr angezeigt (siehe PresentPerson-Docstring), nur die Anzahl
+    (grüne Punkte o.ä.)."""
+    return sum(1 for p in list_present(db) if p.person_type == "employee")
+
+
+def run_auto_checkout(db: Session, *, now: datetime | None = None) -> int:
+    """Checkt Personen automatisch aus, deren Check-in länger als die im Admin-Bereich
+    eingestellte Frist zurückliegt (Feedback: falls jemand vergisst, sich auszuchecken).
+    Betrifft Mitarbeiter wie Besucher gleichermaßen. 0/negative Stunden = deaktiviert.
+
+    Wird periodisch aus einem Hintergrund-Task im Server-Prozess aufgerufen (siehe
+    app/main.py), nicht aus einem externen Cronjob -- passend zum "super-easy
+    Deployment"-Ansatz des Projekts (ein Container, keine weitere Einrichtung nötig)."""
+    from app.services.settings import get_auto_checkout_hours  # lokal: Zirkelimport vermeiden
+
+    hours = get_auto_checkout_hours(db)
+    if hours <= 0:
+        return 0
+
+    reference = now or _now()
+    cutoff = reference - timedelta(hours=hours)
+
+    def _aware(ts: datetime) -> datetime:
+        return ts if ts.tzinfo is not None else ts.replace(tzinfo=timezone.utc)
+
+    betroffen = [p for p in list_present(db) if _aware(p.checkin_zeit) < cutoff]
+    for person in betroffen:
+        checkout_person(
+            db,
+            person_type=person.person_type,
+            person_id=person.person_id,
+            operator="System (automatisch)",
+            source="auto",
+        )
+    return len(betroffen)

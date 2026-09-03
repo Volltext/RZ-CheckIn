@@ -26,18 +26,24 @@ class Base(DeclarativeBase):
 
 
 class Employee(Base):
+    """Interne Mitarbeiter werden bewusst NUR über ihre Dienstausweisnummer geführt --
+    keine Namen, keine sonstige personenbezogene Verknüpfung (Feedback aus der Fachseite:
+    das Log soll für interne Mitarbeiter keine Identität speichern, sondern ausschließlich
+    die Kartennummer). `rfid_uid` ist damit fachlich die Dienstausweisnummer, technisch
+    die vom Reader gelesene Karten-UID -- bei den eingesetzten Dienstausweisen ist beides
+    dieselbe Nummer.
+
+    Die eigene `id` bleibt trotzdem bestehen (statt die UID selbst als Primärschlüssel zu
+    nutzen), damit ein Kartentausch (verlorene/defekte Karte) möglich ist, ohne die
+    Anwesenheitshistorie unter einer neuen Person fortzuführen: der Admin trägt einfach
+    eine neue UID auf demselben Eintrag ein."""
+
     __tablename__ = "employees"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
-    vorname: Mapped[str] = mapped_column(String(200))
-    nachname: Mapped[str] = mapped_column(String(200))
     rfid_uid: Mapped[str | None] = mapped_column(String(64), unique=True, nullable=True, index=True)
     aktiv: Mapped[bool] = mapped_column(default=True)
     erstellt_am: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
-
-    @property
-    def voller_name(self) -> str:
-        return f"{self.vorname} {self.nachname}".strip()
 
 
 class Visitor(Base):
@@ -66,7 +72,7 @@ class CheckLog(Base):
     __table_args__ = (
         CheckConstraint("person_type IN ('employee', 'visitor')", name="ck_checklog_person_type"),
         CheckConstraint("action IN ('checkin', 'checkout')", name="ck_checklog_action"),
-        CheckConstraint("source IN ('rfid', 'manual')", name="ck_checklog_source"),
+        CheckConstraint("source IN ('rfid', 'manual', 'auto')", name="ck_checklog_source"),
         Index("ix_checklog_person", "person_type", "person_id", "timestamp"),
         Index("ix_checklog_timestamp", "timestamp"),
     )
@@ -119,3 +125,15 @@ class UnknownScan(Base):
     uid: Mapped[str] = mapped_column(String(64), primary_key=True)
     zuletzt_gesehen: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
     anzahl: Mapped[int] = mapped_column(Integer, default=1)
+
+
+class Setting(Base):
+    """Generische Key-Value-Ablage für Einstellungen, die der Admin zur Laufzeit über die
+    Oberfläche ändern können soll (im Gegensatz zu app/config.py, das aus Umgebungsvariablen
+    beim Start gelesen wird und einen Neustart bräuchte). Aktuell einzig genutzt für
+    `auto_checkout_hours`, siehe app/services/settings.py."""
+
+    __tablename__ = "settings"
+
+    key: Mapped[str] = mapped_column(String(100), primary_key=True)
+    value: Mapped[str] = mapped_column(String(500))

@@ -30,6 +30,15 @@ class Settings(BaseSettings):
     agent_offline_threshold_seconds: int = 90
     retention_days: int = 730
 
+    # Startwert fürs automatische Auschecken (falls jemand das Aus-Scannen vergisst),
+    # solange der Admin im Admin-Bereich noch nichts anderes eingestellt hat (siehe
+    # app/services/settings.py -- dort ist der Wert danach zur Laufzeit änderbar).
+    # 0 = deaktiviert.
+    auto_checkout_default_hours: int = 12
+    # Wie oft der Hintergrund-Task im Server-Prozess prüft, ob jemand die konfigurierte
+    # Frist überschritten hat (siehe app/main.py). Kein Admin-Wert, da rein technisch.
+    auto_checkout_check_interval_seconds: int = 300
+
     admin_ip_allowlist: str = ""
 
     site_title: str = "Rechenzentrum Check-in"

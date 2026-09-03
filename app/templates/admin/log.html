@@ -19,7 +19,7 @@ Automatische Löschung findet ausschließlich über den Wartungsjob statt (Aufbe
 
 <div class="karte" style="margin-top:1.5rem;">
   <table>
-    <thead><tr><th>Zeitpunkt</th><th>Typ</th><th>Name</th><th>Firma</th><th>Aktion</th><th>Quelle</th></tr></thead>
+    <thead><tr><th>Zeitpunkt</th><th>Typ</th><th>Name / Dienstausweisnummer</th><th>Firma</th><th>Aktion</th><th>Quelle</th></tr></thead>
     <tbody>
       {% for row in eintraege %}
       <tr>
@@ -28,7 +28,11 @@ Automatische Löschung findet ausschließlich über den Wartungsjob statt (Aufbe
         <td>{{ row.name }}</td>
         <td>{{ row.firma or "" }}</td>
         <td>{{ "Check-in" if row.entry.action == "checkin" else "Check-out" }}</td>
-        <td>{{ "RFID" if row.entry.source == "rfid" else "manuell" }}</td>
+        <td>
+          {% if row.entry.source == "rfid" %}RFID
+          {% elif row.entry.source == "auto" %}automatisch
+          {% else %}manuell{% endif %}
+        </td>
       </tr>
       {% endfor %}
     </tbody>

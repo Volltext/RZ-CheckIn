@@ -1,16 +1,31 @@
-{% if present %}
+<div class="intern-presence">
+  <h3>Mitarbeiter (intern)</h3>
+  <div class="intern-count">
+    <span class="presence-dot {{ 'presence-dot-aktiv' if intern_anzahl else '' }}" aria-hidden="true"></span>
+    <strong>{{ intern_anzahl }}</strong> aktuell im Rechenzentrum
+  </div>
+  {% if intern_anzahl %}
+  <div class="presence-dots" aria-hidden="true">
+    {% for _ in range(intern_anzahl) %}<span class="dot dot-gruen"></span>{% endfor %}
+  </div>
+  {% endif %}
+  <p class="hinweis-klein">Aus Datenschutzgründen werden hier keine Namen angezeigt.</p>
+</div>
+
+<h3>Externe Besucher</h3>
+{% if extern %}
 <table>
   <thead>
     <tr><th>Name</th><th>Firma</th><th>Eingecheckt seit</th><th></th></tr>
   </thead>
   <tbody>
-    {% for p in present %}
+    {% for p in extern %}
     <tr>
-      <td>{{ p.name }}{% if p.person_type == "visitor" %} <small>(extern)</small>{% endif %}</td>
+      <td>{{ p.name }}</td>
       <td>{{ p.firma or "" }}</td>
       <td>{{ p.checkin_zeit.strftime("%d.%m.%Y %H:%M") }}</td>
       <td>
-        <form method="post" action="/kiosk/auschecken/{{ p.person_type }}/{{ p.person_id }}" class="formular-inline">
+        <form method="post" action="/kiosk/auschecken/visitor/{{ p.person_id }}" class="formular-inline">
           <button type="submit" class="button button-warnung button-klein">Auschecken</button>
         </form>
       </td>
@@ -19,5 +34,5 @@
   </tbody>
 </table>
 {% else %}
-<p>Aktuell ist niemand im Rechenzentrum eingecheckt.</p>
+<p>Aktuell ist kein externer Besucher eingecheckt.</p>
 {% endif %}

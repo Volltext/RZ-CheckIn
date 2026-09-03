@@ -164,6 +164,27 @@ body:not(.kiosk) th, body:not(.kiosk) td { border-bottom: 1px solid var(--admin-
 .feedback-registrierung p { margin: 0 0 0.8rem; }
 .feedback-registrierung .formular { max-width: none; }
 
+/* Live-Übersicht: Mitarbeiter (intern) werden nur als Anzahl + grüne Punkte gezeigt,
+   nie mit Namen (siehe app/services/attendance.py::PresentPerson). */
+.intern-presence { margin-bottom: 1.5rem; }
+.intern-count {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 1.15rem;
+}
+.presence-dot {
+  width: 0.85rem;
+  height: 0.85rem;
+  border-radius: 50%;
+  background: #475569;
+  flex-shrink: 0;
+}
+.presence-dot-aktiv { background: var(--farbe-erfolg); box-shadow: 0 0 0.5rem rgba(22, 163, 74, 0.7); }
+.presence-dots { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.7rem; }
+.dot { width: 0.6rem; height: 0.6rem; border-radius: 50%; }
+.dot-gruen { background: var(--farbe-erfolg); box-shadow: 0 0 0.35rem rgba(22, 163, 74, 0.6); }
+
 footer.dsgvo-hinweis {
   padding: 1rem 2rem;
   font-size: 0.8rem;

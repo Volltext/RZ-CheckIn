@@ -2,7 +2,7 @@
   <div class="feedback feedback-{{ event.result }}">
     <span class="feedback-icon">{{ "✓" if event.result == "checkin" else "↩" }}</span>
     <span class="feedback-text">
-      {{ event.name }}<br>
+      {% if event.name %}{{ event.name }}<br>{% endif %}
       <span class="feedback-sub">{{ "eingecheckt" if event.result == "checkin" else "ausgecheckt" }}</span>
     </span>
   </div>
@@ -10,7 +10,7 @@
 {% elif event and event.result == "card_inactive" %}
   <div class="feedback feedback-fehler">
     <span class="feedback-icon">✕</span>
-    <span class="feedback-text">Karte gesperrt<br><span class="feedback-sub">{{ event.name }}</span></span>
+    <span class="feedback-text">Karte gesperrt</span>
   </div>
 {% elif event and event.result == "conflict" %}
   <div class="feedback feedback-fehler">
@@ -19,14 +19,11 @@
   </div>
 {% elif event and event.result == "unknown_card" %}
   <div class="feedback-registrierung">
-    <p><strong>Karte nicht erkannt.</strong> Neuer Mitarbeiter? Jetzt kurz registrieren:</p>
+    <p><strong>Karte nicht erkannt.</strong> Neue Dienstausweiskarte? Es wird ausschließlich
+    die Kartennummer gespeichert, kein Name.</p>
     <form method="post" action="/kiosk/mitarbeiter/registrieren" class="formular">
       <input type="hidden" name="rfid_uid" value="{{ event.uid }}">
-      <label for="reg-vorname">Vorname</label>
-      <input id="reg-vorname" name="vorname" required autofocus>
-      <label for="reg-nachname">Nachname</label>
-      <input id="reg-nachname" name="nachname" required>
-      <button type="submit" class="button button-erfolg">Registrieren &amp; einchecken</button>
+      <button type="submit" class="button button-erfolg" autofocus>Karte registrieren &amp; einchecken</button>
     </form>
   </div>
 {% else %}

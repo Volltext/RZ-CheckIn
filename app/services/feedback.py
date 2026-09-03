@@ -18,9 +18,10 @@ from datetime import datetime, timezone
 
 _MAX_EVENTS = 5
 _TTL_SECONDS = 8
-# Die Selbstregistrierung (unbekannte Karte -> Namen eintragen) braucht spürbar länger
-# als ein kurzes "eingecheckt"-Banner: die Person muss den Vor-/Nachnamen erst eintippen.
-_TTL_SECONDS_UNKNOWN_CARD = 90
+# Die Registrierung einer unbekannten Karte braucht etwas länger als ein kurzes
+# "eingecheckt"-Banner, damit Zeit bleibt, den Hinweis zu lesen und den
+# Registrieren-Button zu drücken (kein Formular mehr -- siehe kiosk/_feedback.html).
+_TTL_SECONDS_UNKNOWN_CARD = 20
 
 _lock = threading.Lock()
 _events: deque["ScanFeedbackEvent"] = deque(maxlen=_MAX_EVENTS)
@@ -34,7 +35,7 @@ class ScanFeedbackEvent:
     uid: str | None = None
 
 
-def push_event(result: str, name: str | None, *, uid: str | None = None) -> None:
+def push_event(result: str, name: str | None = None, *, uid: str | None = None) -> None:
     with _lock:
         _events.append(
             ScanFeedbackEvent(result=result, name=name, occurred_at=datetime.now(timezone.utc), uid=uid)

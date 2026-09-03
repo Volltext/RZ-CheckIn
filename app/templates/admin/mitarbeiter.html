@@ -1,14 +1,17 @@
 {% extends "admin/base.html" %}
 {% block admin_content %}
 <h1>Mitarbeiter</h1>
+<p>
+  Interne Mitarbeiter werden ausschließlich über ihre Dienstausweisnummer geführt --
+  es werden bewusst keine Namen gespeichert und keine Verknüpfung zu einer Person
+  hergestellt.
+</p>
 
 <div class="karte">
-  <h2 style="margin-top:0;">Neuen Mitarbeiter anlegen</h2>
+  <h2 style="margin-top:0;">Neuen Dienstausweis anlegen</h2>
   <form class="formular" method="post" action="/admin/mitarbeiter/anlegen">
-    <label for="vorname">Vorname</label>
-    <input id="vorname" name="vorname" required>
-    <label for="nachname">Nachname</label>
-    <input id="nachname" name="nachname" required>
+    <label for="rfid_uid">Dienstausweisnummer (Karten-UID)</label>
+    <input id="rfid_uid" name="rfid_uid" placeholder="UID (Hex)" required>
     <button type="submit" class="button button-primary">Anlegen</button>
   </form>
 </div>
@@ -16,7 +19,7 @@
 {% if unbekannte_karten %}
 <div class="karte">
   <h2 style="margin-top:0;">Unbekannte Karten am Reader</h2>
-  <p>Diese UIDs wurden gescannt, sind aber keinem Mitarbeiter zugeordnet.</p>
+  <p>Diese UIDs wurden gescannt, sind aber keinem Eintrag zugeordnet.</p>
   <table>
     <thead><tr><th>UID</th><th>Zuletzt gesehen</th><th>Anzahl</th><th>Aktion</th></tr></thead>
     <tbody>
@@ -28,9 +31,11 @@
         <td>
           <form method="post" action="/admin/unbekannte-karten/{{ u.uid }}/zuordnen" class="formular-inline">
             <select name="employee_id" required>
-              <option value="" disabled selected>Mitarbeiter wählen …</option>
+              <option value="" disabled selected>Bestehendem Eintrag zuordnen (Kartentausch) …</option>
               {% for m in mitarbeiter %}
-              <option value="{{ m.id }}">{{ m.vorname }} {{ m.nachname }}{% if m.rfid_uid %} (Karte wird ersetzt){% endif %}</option>
+              <option value="{{ m.id }}">
+                Eintrag seit {{ m.erstellt_am.strftime("%d.%m.%Y") }} ({{ "aktiv" if m.aktiv else "inaktiv" }}{% if m.rfid_uid %}, Karte wird ersetzt{% endif %})
+              </option>
               {% endfor %}
             </select>
             <button type="submit" class="button button-primary">Zuordnen</button>
@@ -47,23 +52,30 @@
 {% endif %}
 
 <div class="karte">
-  <h2 style="margin-top:0;">Alle Mitarbeiter</h2>
+  <h2 style="margin-top:0;">Alle Dienstausweise</h2>
   <table>
     <thead>
-      <tr><th>Name</th><th>Karte (UID)</th><th>Status</th><th>Aktionen</th></tr>
+      <tr><th>Dienstausweisnummer</th><th>Status</th><th>Anwesenheit</th><th>Angelegt am</th><th>Aktionen</th></tr>
     </thead>
     <tbody>
       {% for m in mitarbeiter %}
       <tr>
-        <td>{{ m.vorname }} {{ m.nachname }}</td>
-        <td>{{ m.rfid_uid or "—" }}</td>
+        <td><code>{{ m.rfid_uid or "—" }}</code></td>
         <td>
           {% if m.aktiv %}<span class="badge badge-aktiv">aktiv</span>
           {% else %}<span class="badge badge-inaktiv">inaktiv</span>{% endif %}
         </td>
         <td>
+          {% if anwesend.get(m.id) %}
+            <span class="badge badge-aktiv">anwesend</span>
+          {% else %}
+            <span class="badge badge-inaktiv">nicht anwesend</span>
+          {% endif %}
+        </td>
+        <td>{{ m.erstellt_am.strftime("%d.%m.%Y") }}</td>
+        <td>
           <details>
-            <summary>Karte zuordnen</summary>
+            <summary>Karte zuordnen/ersetzen</summary>
             <form method="post" action="/admin/mitarbeiter/{{ m.id }}/karte-zuordnen" class="formular-inline">
               <input type="text" name="rfid_uid" placeholder="UID (Hex)" required style="width:9rem;">
               <button type="submit" class="button button-primary">Zuordnen</button>
@@ -82,6 +94,11 @@
             <button type="submit" class="button button-erfolg">Aktivieren</button>
             {% endif %}
           </form>
+          {% if anwesend.get(m.id) %}
+          <form method="post" action="/admin/mitarbeiter/{{ m.id }}/auschecken" class="formular-inline">
+            <button type="submit" class="button button-warnung">Jetzt auschecken</button>
+          </form>
+          {% endif %}
         </td>
       </tr>
       {% endfor %}

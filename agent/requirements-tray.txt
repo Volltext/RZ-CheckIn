@@ -1,0 +1,9 @@
+# Zusätzliche Abhängigkeiten NUR für die Systray-/GUI-Variante (agent/tray_app.py) bzw.
+# den .exe-Build daraus (siehe agent/build_exe.ps1). Der reine Kommandozeilen-Agent
+# (reader_agent.py) braucht davon nichts -- siehe agent/requirements.txt.
+#
+# tkinter (Einstellungen-Fenster) ist Teil der Standard-Windows-Python-Installation und
+# taucht hier bewusst nicht auf.
+pystray>=0.19
+pillow>=10.0
+pyinstaller>=6.0

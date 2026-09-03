@@ -1,9 +1,16 @@
-"""Kiosk-Oberfläche: Live-Übersicht, manuelles Auschecken für alle, Ein-/Auschecken für
-Externe, Selbstregistrierung für Mitarbeiter mit noch unbekannter Karte.
+"""Kiosk-Oberfläche: Live-Übersicht, Ein-/Auschecken für Externe, Registrierung neuer
+Dienstausweise mit noch unbekannter Karte.
 
 Kein Login nötig (Konzept 3.3) — die Seite steht am Kiosk-PC vor Ort. Wer bis zum Reader
 vordringt, darf ohnehin ins Rechenzentrum; deshalb dürfen sich Mitarbeiter hier auch
-selbst mit ihrer Karte anlegen, statt zwingend über den Admin-Bereich zu müssen.
+selbst mit ihrer Karte registrieren, statt zwingend über den Admin-Bereich zu müssen.
+Für Mitarbeiter wird dabei bewusst NUR die Dienstausweisnummer gespeichert -- kein Name,
+keine Verknüpfung zu einer Person (Fachvorgabe, siehe app/models.py::Employee). Deshalb
+zeigt die Live-Übersicht für Mitarbeiter auch keine Namen/Zeilen mehr, nur die Anzahl der
+aktuell Anwesenden; ein manuelles Auschecken einzelner Mitarbeiter über den Kiosk entfällt
+damit (dafür gibt es das automatische Auschecken nach Zeitablauf, siehe
+app/services/attendance.py::run_auto_checkout, sowie bei Bedarf den Admin-Bereich).
+
 Zustandsändernde Aktionen laufen über normale HTML-Formulare mit Server-Redirect (kein
 JSON/JS nötig); Übersicht und Scan-Feedback aktualisieren sich per Polling
 (app/static/app.js).
@@ -18,7 +25,12 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.models import CheckLog, Employee, UnknownScan, Visitor
-from app.services.attendance import checkin_visitor, checkout_person, list_present
+from app.services.attendance import (
+    checkin_visitor,
+    checkout_person,
+    count_present_employees,
+    list_present,
+)
 from app.services.feedback import latest_event, push_event
 from app.templating import templates
 
@@ -27,35 +39,34 @@ router = APIRouter(tags=["kiosk"])
 
 @router.get("/", response_class=HTMLResponse)
 def kiosk_home(request: Request, db: Session = Depends(get_db)) -> HTMLResponse:
-    present = list_present(db)
+    extern = [p for p in list_present(db) if p.person_type == "visitor"]
+    intern_anzahl = count_present_employees(db)
     event = latest_event()
-    return templates.TemplateResponse(request, "kiosk/index.html", {"present": present, "event": event})
+    return templates.TemplateResponse(
+        request, "kiosk/index.html", {"extern": extern, "intern_anzahl": intern_anzahl, "event": event}
+    )
 
 
-@router.post("/kiosk/auschecken/{person_type}/{person_id}")
-def manuelles_auschecken(person_type: str, person_id: str, db: Session = Depends(get_db)) -> RedirectResponse:
-    """Manuelles Auschecken für jede aktuell anwesende Person (links auf der
-    Kiosk-Startseite) -- z.B. falls jemand vergessen hat, die Karte beim Verlassen
-    erneut vorzuhalten."""
-    if person_type not in ("employee", "visitor"):
-        raise HTTPException(status_code=404, detail="Unbekannter Personentyp")
+@router.post("/kiosk/auschecken/visitor/{person_id}")
+def manuelles_auschecken(person_id: str, db: Session = Depends(get_db)) -> RedirectResponse:
+    """Manuelles Auschecken für externe Besucher (links auf der Kiosk-Startseite) -- z.B.
+    falls jemand vergessen hat, sich beim Verlassen abzumelden. Für Mitarbeiter gibt es
+    diese Aktion am Kiosk bewusst nicht mehr (siehe Modul-Docstring)."""
     try:
-        checkout_person(db, person_type=person_type, person_id=person_id, operator="Kiosk (manuell)")
+        checkout_person(db, person_type="visitor", person_id=person_id, operator="Kiosk (manuell)")
     except ValueError:
         pass  # bereits ausgecheckt -> einfach zur Übersicht zurück
     return RedirectResponse(url="/", status_code=303)
 
 
 @router.post("/kiosk/mitarbeiter/registrieren")
-def mitarbeiter_selbstregistrierung(
-    vorname: str = Form(...),
-    nachname: str = Form(...),
+def mitarbeiter_karte_registrieren(
     rfid_uid: str = Form(...),
     db: Session = Depends(get_db),
 ) -> RedirectResponse:
-    """Selbstregistrierung: nach einem Scan einer unbekannten Karte (siehe
-    kiosk/_feedback.html) kann der Mitarbeiter Vor-/Nachnamen direkt am Kiosk eintragen
-    -- Profil wird angelegt und sofort eingecheckt, ohne Umweg über den Admin-Bereich."""
+    """Nach einem Scan einer unbekannten Karte (siehe kiosk/_feedback.html) kann die
+    Karte per Knopfdruck direkt am Kiosk als neuer Dienstausweis registriert werden --
+    ohne Namenseingabe, es wird ausschließlich die Kartennummer gespeichert."""
     uid = rfid_uid.strip().upper()
 
     existing = db.scalar(select(Employee).where(Employee.rfid_uid == uid))
@@ -65,7 +76,7 @@ def mitarbeiter_selbstregistrierung(
         push_event("conflict", "Diese Karte ist bereits einem Mitarbeiter zugeordnet.")
         return RedirectResponse(url="/", status_code=303)
 
-    employee = Employee(vorname=vorname.strip(), nachname=nachname.strip(), rfid_uid=uid, aktiv=True)
+    employee = Employee(rfid_uid=uid, aktiv=True)
     db.add(employee)
     db.flush()
     db.add(CheckLog(person_type="employee", person_id=employee.id, action="checkin", source="manual"))
@@ -75,14 +86,17 @@ def mitarbeiter_selbstregistrierung(
         db.delete(unknown)
 
     db.commit()
-    push_event("checkin", employee.voller_name)
+    push_event("checkin")
     return RedirectResponse(url="/", status_code=303)
 
 
 @router.get("/kiosk/presence-partial", response_class=HTMLResponse)
 def presence_partial(request: Request, db: Session = Depends(get_db)) -> HTMLResponse:
-    present = list_present(db)
-    return templates.TemplateResponse(request, "kiosk/_presence.html", {"present": present})
+    extern = [p for p in list_present(db) if p.person_type == "visitor"]
+    intern_anzahl = count_present_employees(db)
+    return templates.TemplateResponse(
+        request, "kiosk/_presence.html", {"extern": extern, "intern_anzahl": intern_anzahl}
+    )
 
 
 @router.get("/kiosk/feedback-partial", response_class=HTMLResponse)
@@ -149,7 +163,3 @@ def besucher_einchecken(visitor_id: str = Form(...), db: Session = Depends(get_d
     except ValueError:
         pass  # bereits eingecheckt -> einfach zur Übersicht zurück
     return RedirectResponse(url="/", status_code=303)
-
-
-# Auschecken (Mitarbeiter wie Externe) läuft einheitlich über
-# POST /kiosk/auschecken/{person_type}/{person_id} von der Startseite aus -- siehe oben.

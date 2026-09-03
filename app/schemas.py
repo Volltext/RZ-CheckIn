@@ -23,7 +23,6 @@ class RfidScanRequest(BaseModel):
 
 class RfidScanResponse(BaseModel):
     result: Literal["checkin", "checkout", "unknown_card", "card_inactive", "ignored"]
-    name: str | None = None
     action_timestamp: datetime | None = None
 
 
@@ -39,7 +38,8 @@ class HeartbeatResponse(BaseModel):
 class PresenceEntry(BaseModel):
     person_type: PersonType
     person_id: str
-    name: str
+    # Für Mitarbeiter bewusst None -- siehe app/services/attendance.py::PresentPerson.
+    name: str | None
     firma: str | None = None
     checkin_zeit: datetime
 
