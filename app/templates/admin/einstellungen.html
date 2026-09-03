@@ -26,4 +26,20 @@
     <button type="submit" class="button button-primary">Speichern</button>
   </form>
 </div>
+
+<div class="karte">
+  <h2 style="margin-top:0;">Besuchersuche am Kiosk</h2>
+  <p>
+    Steuert, ob externe Besucher am Kiosk (<code>/kiosk/besucher</code>) zuerst nach
+    einem vorhandenen Profil suchen können, bevor sie ggf. ein neues anlegen. Deaktiviert
+    zeigt die Seite direkt nur das Formular zum Neuanlegen.
+  </p>
+  <form class="formular" method="post" action="/admin/einstellungen/besucher-suche">
+    <label style="display:flex; align-items:center; gap:0.5rem; font-weight:normal;">
+      <input type="checkbox" id="besucher_suche_aktiv" name="aktiv" {{ "checked" if besucher_suche_aktiv else "" }}>
+      Suche nach vorhandenen Besucherprofilen anzeigen
+    </label>
+    <button type="submit" class="button button-primary">Speichern</button>
+  </form>
+</div>
 {% endblock %}

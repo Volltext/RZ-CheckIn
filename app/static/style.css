@@ -198,8 +198,15 @@ footer.dsgvo-hinweis {
   border-top: 1px solid #334155;
 }
 
-/* Externer-Besucher-Maske: Raumauswahl + Ergebnisliste extra groß für Touch-Bedienung
-   (Kiosk läuft ggf. an einem Touch-Terminal, siehe README). */
+/* Externer-Besucher-Maske: als eigener, schmalerer Block zentriert statt (wie der Rest
+   von <main>) linksbündig über die volle Breite -- wirkt sonst bei viel Platz auf dem
+   Bildschirm sehr linksbündig. Die Raumauswahl (zwei große Buttons nebeneinander)
+   braucht etwas mehr Breite als das Suchen/Anlegen-Formular darunter. */
+.kiosk-besucher { max-width: 480px; margin: 0 auto; }
+.kiosk-besucher-wahl { max-width: 640px; }
+
+/* Raumauswahl + Ergebnisliste extra groß für Touch-Bedienung (Kiosk läuft ggf. an einem
+   Touch-Terminal, siehe README). */
 .raum-wahl {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));

@@ -31,6 +31,7 @@ from app.services.attendance import (
     presence_by_room,
 )
 from app.services.feedback import latest_event, push_event
+from app.services.settings import get_besucher_suche_aktiv
 from app.templating import templates
 
 router = APIRouter(tags=["kiosk"])
@@ -190,6 +191,7 @@ def besucher_suche_seite(request: Request, raum: str = "", db: Session = Depends
             "raum": gewaehlt.agent_id if gewaehlt else "",
             "raum_bezeichnung": gewaehlt.bezeichnung if gewaehlt else None,
             "mehrere_raeume": len(agenten) > 1,
+            "suche_aktiv": get_besucher_suche_aktiv(db),
         },
     )
 
@@ -198,7 +200,13 @@ def besucher_suche_seite(request: Request, raum: str = "", db: Session = Depends
 def besucher_suche_partial(
     request: Request, q: str = "", raum: str = "", db: Session = Depends(get_db)
 ) -> HTMLResponse:
-    treffer = _search_visitors(db, q) if q.strip() else []
+    # Auch server-seitig prüfen, nicht nur die Eingabe im Template verstecken -- eine im
+    # Admin-Bereich deaktivierte Suche soll auch bei einem direkten Aufruf des Partials
+    # keine Treffer mehr liefern (siehe /admin/einstellungen).
+    if not get_besucher_suche_aktiv(db):
+        treffer: list[Visitor] = []
+    else:
+        treffer = _search_visitors(db, q) if q.strip() else []
     return templates.TemplateResponse(
         request, "kiosk/_besucher_suche_ergebnisse.html", {"treffer": treffer, "q": q, "raum": raum}
     )

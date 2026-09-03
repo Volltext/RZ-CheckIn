@@ -7,6 +7,7 @@
 </header>
 
 <main>
+<div class="kiosk-besucher {{ 'kiosk-besucher-wahl' if raum_wahl else '' }}">
 {% if raum_wahl %}
   <h2>In welchem Raum?</h2>
   <div class="raum-wahl">
@@ -22,6 +23,7 @@
   </p>
   {% endif %}
 
+  {% if suche_aktiv %}
   <label for="suche">Vorhandenes Profil suchen (Name oder Telefonnummer)</label>
   <input
     id="suche"
@@ -35,6 +37,7 @@
   <div id="suche-ergebnisse"></div>
 
   <hr style="margin:2rem 0; border-color:#334155;">
+  {% endif %}
 
   <h2>Neues Besucherprofil anlegen</h2>
   <form class="formular" method="post" action="/kiosk/besucher/anlegen">
@@ -50,6 +53,7 @@
     <button type="submit" class="button button-erfolg">Anlegen und einchecken</button>
   </form>
 {% endif %}
+</div>
 </main>
 
 <footer class="dsgvo-hinweis">

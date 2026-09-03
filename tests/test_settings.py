@@ -1,8 +1,14 @@
-"""Admin-Einstellungen: automatisches Auschecken nach konfigurierbarer Stundenzahl."""
+"""Admin-Einstellungen: automatisches Auschecken nach konfigurierbarer Stundenzahl,
+Besuchersuche am Kiosk an/aus."""
 
 from __future__ import annotations
 
-from app.services.settings import get_auto_checkout_hours, set_auto_checkout_hours
+from app.services.settings import (
+    get_auto_checkout_hours,
+    get_besucher_suche_aktiv,
+    set_auto_checkout_hours,
+    set_besucher_suche_aktiv,
+)
 from tests.factories import make_admin
 
 
@@ -43,3 +49,33 @@ def test_einstellungen_rejects_negative_value(client, db):
     _login(client, db)
     response = client.post("/admin/einstellungen", data={"auto_checkout_stunden": "-1"})
     assert response.status_code == 400
+
+
+def test_default_besucher_suche_aktiv_is_true(db):
+    assert get_besucher_suche_aktiv(db) is True
+
+
+def test_set_and_get_besucher_suche_aktiv(db):
+    set_besucher_suche_aktiv(db, False)
+    assert get_besucher_suche_aktiv(db) is False
+
+    set_besucher_suche_aktiv(db, True)
+    assert get_besucher_suche_aktiv(db) is True
+
+
+def test_einstellungen_besucher_suche_form_disables_it(client, db):
+    _login(client, db)
+    # Checkbox nicht angehakt -> Feld wird gar nicht mitgeschickt.
+    response = client.post("/admin/einstellungen/besucher-suche", data={}, follow_redirects=False)
+    assert response.status_code == 200
+    assert get_besucher_suche_aktiv(db) is False
+
+
+def test_einstellungen_besucher_suche_form_enables_it(client, db):
+    _login(client, db)
+    set_besucher_suche_aktiv(db, False)
+    response = client.post(
+        "/admin/einstellungen/besucher-suche", data={"aktiv": "true"}, follow_redirects=False
+    )
+    assert response.status_code == 200
+    assert get_besucher_suche_aktiv(db) is True
