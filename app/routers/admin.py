@@ -44,7 +44,7 @@ router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(check_
 
 @router.get("/", response_class=HTMLResponse)
 def admin_index() -> RedirectResponse:
-    return RedirectResponse(url="/admin/mitarbeiter", status_code=303)
+    return RedirectResponse(url="/admin/besucher", status_code=303)
 
 
 # --- Login/Logout -----------------------------------------------------------
@@ -70,7 +70,7 @@ def login_submit(
             {"fehler": "Benutzername oder Passwort ist falsch."},
             status_code=401,
         )
-    response = RedirectResponse(url="/admin/mitarbeiter", status_code=303)
+    response = RedirectResponse(url="/admin/besucher", status_code=303)
     response.set_cookie(
         settings.session_cookie_name,
         create_session_token(admin.id),

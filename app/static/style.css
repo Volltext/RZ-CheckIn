@@ -205,15 +205,47 @@ footer.dsgvo-hinweis {
 .kiosk-besucher { max-width: 480px; margin: 0 auto; }
 .kiosk-besucher-wahl { max-width: 640px; }
 
-/* Raumauswahl + Ergebnisliste extra groß für Touch-Bedienung (Kiosk läuft ggf. an einem
-   Touch-Terminal, siehe README). */
+/* Raumauswahl extra groß für Touch-Bedienung (Kiosk läuft ggf. an einem Touch-Terminal,
+   siehe README) -- als Karte mit Icon statt einem schlichten flachen Button. */
 .raum-wahl {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 1.5rem;
+  gap: 1.25rem;
   margin: 1.5rem 0;
 }
-.raum-wahl-button { padding: 3rem 1.5rem; font-size: 1.6rem; font-weight: 600; }
+.raum-karte {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  padding: 2.75rem 1.5rem;
+  border-radius: 1rem;
+  background: linear-gradient(160deg, var(--farbe-flaeche) 0%, #16213a 100%);
+  border: 1px solid #334155;
+  color: var(--farbe-text-hell);
+  text-decoration: none;
+  touch-action: manipulation;
+  transition: transform 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
+}
+.raum-karte:hover, .raum-karte:focus-visible {
+  border-color: var(--farbe-akzent);
+  box-shadow: 0 0.5rem 1.5rem rgba(37, 99, 235, 0.25);
+  transform: translateY(-2px);
+}
+.raum-karte:active { transform: scale(0.97); }
+.raum-karte-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: 50%;
+  background: rgba(37, 99, 235, 0.18);
+  color: #60a5fa;
+}
+.raum-karte-icon svg { width: 1.6rem; height: 1.6rem; }
+.raum-karte-name { font-size: 1.3rem; font-weight: 600; text-align: center; }
 
 .raum-aktuell {
   display: flex;
@@ -222,6 +254,23 @@ footer.dsgvo-hinweis {
   font-size: 1.05rem;
   margin: 0 0 1.5rem;
 }
+
+/* Kopfzeile über dem "Neues Profil"-Formular: hält den Bestätigen-Button oben und
+   sticky, damit er auch bei aufgeklappter Bildschirmtastatur (Touch-Terminal) erreichbar
+   bleibt, ohne die Tastatur erst schließen zu müssen. */
+.formular-kopf {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.5rem 0;
+  margin-bottom: 0.5rem;
+  background: var(--farbe-hintergrund);
+}
+.formular-kopf h2 { margin: 0; }
 
 .besucher-treffer { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 0.7rem; }
 .besucher-treffer .formular-inline {

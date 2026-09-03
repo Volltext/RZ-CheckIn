@@ -12,7 +12,15 @@
   <h2>In welchem Raum?</h2>
   <div class="raum-wahl">
     {% for a in agenten %}
-    <a class="button button-primary raum-wahl-button" href="/kiosk/besucher?raum={{ a.agent_id }}">{{ a.bezeichnung }}</a>
+    <a class="raum-karte" href="/kiosk/besucher?raum={{ a.agent_id }}">
+      <span class="raum-karte-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="5" y="2" width="14" height="20" rx="1.5" stroke="currentColor" stroke-width="1.8"/>
+          <circle cx="14.5" cy="12" r="1.1" fill="currentColor"/>
+        </svg>
+      </span>
+      <span class="raum-karte-name">{{ a.bezeichnung }}</span>
+    </a>
     {% endfor %}
   </div>
 {% else %}
@@ -39,8 +47,15 @@
   <hr style="margin:2rem 0; border-color:#334155;">
   {% endif %}
 
-  <h2>Neues Besucherprofil anlegen</h2>
-  <form class="formular" method="post" action="/kiosk/besucher/anlegen">
+  {# Der Anlegen-Button sitzt bewusst oben (sticky) statt unter den Feldern: an einem
+     Touch-Terminal deckt die Bildschirmtastatur sonst den Button ab, solange ein Feld
+     fokussiert ist -- die Tastatur müsste erst geschlossen werden, um zu bestätigen. Das
+     `form`-Attribut bindet den Button trotzdem an das Formular unten, siehe MDN. #}
+  <div class="formular-kopf">
+    <h2>Neues Besucherprofil anlegen</h2>
+    <button type="submit" form="besucher-anlegen-formular" class="button button-erfolg">Anlegen &amp; einchecken</button>
+  </div>
+  <form id="besucher-anlegen-formular" class="formular" method="post" action="/kiosk/besucher/anlegen">
     <input type="hidden" name="raum" value="{{ raum }}">
     <label for="vorname">Vorname</label>
     <input id="vorname" name="vorname" required>
@@ -50,7 +65,6 @@
     <input id="firma" name="firma">
     <label for="telefonnummer">Telefonnummer</label>
     <input id="telefonnummer" name="telefonnummer">
-    <button type="submit" class="button button-erfolg">Anlegen und einchecken</button>
   </form>
 {% endif %}
 </div>
