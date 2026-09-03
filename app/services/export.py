@@ -10,13 +10,14 @@ from datetime import datetime
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models import CheckLog, Employee, Visitor
+from app.models import Agent, CheckLog, Employee, Visitor
 
 _COLUMNS = [
     "timestamp",
     "person_type",
     "name",
     "firma",
+    "raum",
     "action",
     "source",
     "operator",
@@ -32,6 +33,9 @@ def export_checklog_csv(db: Session, *, von: datetime | None, bis: datetime | No
 
     employees = {e.id: e for e in db.scalars(select(Employee))}
     visitors = {v.id: v for v in db.scalars(select(Visitor))}
+    # Nur eine Anzeige-Auflösung, kein FK -- siehe app/models.py::CheckLog.raum und
+    # app/routers/admin.py::_log_eintraege für dieselbe Logik in der Log-Ansicht.
+    agenten = {a.agent_id: a.bezeichnung for a in db.scalars(select(Agent))}
 
     buffer = io.StringIO()
     writer = csv.writer(buffer, delimiter=";")
@@ -52,12 +56,18 @@ def export_checklog_csv(db: Session, *, von: datetime | None, bis: datetime | No
             name = person.voller_name if person else "(gelöschtes Profil)"
             firma = person.firma if person else ""
 
+        if entry.raum is None:
+            raum = ""
+        else:
+            raum = agenten.get(entry.raum, "(gelöschter Raum)")
+
         writer.writerow(
             [
                 entry.timestamp.isoformat(),
                 entry.person_type,
                 name,
                 firma or "",
+                raum,
                 entry.action,
                 entry.source,
                 entry.operator or "",

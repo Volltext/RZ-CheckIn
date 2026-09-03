@@ -7,7 +7,7 @@ import io
 from datetime import datetime, timedelta, timezone
 
 from app.services.attendance import record_rfid_scan
-from tests.factories import make_admin, make_employee
+from tests.factories import make_admin, make_agent, make_employee
 
 
 def _login(client, db):
@@ -32,14 +32,42 @@ def test_export_contains_expected_columns_and_rows(client, db):
 
     reader = csv.reader(io.StringIO(response.text), delimiter=";")
     rows = list(reader)
-    assert rows[0] == ["timestamp", "person_type", "name", "firma", "action", "source", "operator"]
+    assert rows[0] == ["timestamp", "person_type", "name", "firma", "raum", "action", "source", "operator"]
     data_rows = rows[1:]
     assert len(data_rows) == 1
     assert data_rows[0][1] == "employee"
     # Kein Name -- die Dienstausweisnummer ist die einzige gespeicherte Kennung.
     assert data_rows[0][2] == employee.rfid_uid
-    assert data_rows[0][4] == "checkin"
-    assert data_rows[0][5] == "rfid"
+    assert data_rows[0][4] == ""  # kein Raum angegeben
+    assert data_rows[0][5] == "checkin"
+    assert data_rows[0][6] == "rfid"
+
+
+def test_export_resolves_room_name_from_agent(client, db):
+    _login(client, db)
+    make_agent(db, agent_id="kiosk1", bezeichnung="Serverraum A")
+    make_employee(db, rfid_uid="AABBCCDD")
+    record_rfid_scan(db, uid="AABBCCDD", raum="kiosk1")
+
+    response = client.get("/admin/log/export.csv")
+    reader = csv.reader(io.StringIO(response.text), delimiter=";")
+    rows = list(reader)
+    assert rows[1][4] == "Serverraum A"
+
+
+def test_export_shows_placeholder_for_deleted_room(client, db):
+    _login(client, db)
+    make_employee(db, rfid_uid="AABBCCDD")
+    # Scan mit einer Raum-Referenz, für die (mehr) kein Agent existiert -- z. B. weil der
+    # Agent zwischenzeitlich gelöscht wurde. Der Log-Eintrag selbst bleibt davon
+    # unangetastet (kein FK, siehe app/models.py::CheckLog.raum), nur die Anzeige braucht
+    # einen Platzhalter statt eines leeren Felds.
+    record_rfid_scan(db, uid="AABBCCDD", raum="laengst-geloeschter-agent")
+
+    response = client.get("/admin/log/export.csv")
+    reader = csv.reader(io.StringIO(response.text), delimiter=";")
+    rows = list(reader)
+    assert rows[1][4] == "(gelöschter Raum)"
 
 
 def test_export_date_filter_excludes_out_of_range_entries(client, db):
