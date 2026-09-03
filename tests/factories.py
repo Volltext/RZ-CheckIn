@@ -8,10 +8,8 @@ from app.models import Agent, AdminUser, Employee, Visitor
 from app.security import generate_agent_api_key, hash_agent_api_key, hash_password
 
 
-def make_employee(
-    db: Session, *, vorname: str = "Max", nachname: str = "Mustermann", rfid_uid: str | None = None, aktiv: bool = True
-) -> Employee:
-    employee = Employee(vorname=vorname, nachname=nachname, rfid_uid=rfid_uid, aktiv=aktiv)
+def make_employee(db: Session, *, rfid_uid: str | None = None, aktiv: bool = True) -> Employee:
+    employee = Employee(rfid_uid=rfid_uid, aktiv=aktiv)
     db.add(employee)
     db.commit()
     db.refresh(employee)

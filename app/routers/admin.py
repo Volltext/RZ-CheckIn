@@ -25,7 +25,9 @@ from app.security import (
     hash_password,
     verify_password,
 )
+from app.services.attendance import checkout_person, is_present
 from app.services.export import export_checklog_csv
+from app.services.settings import get_auto_checkout_hours, set_auto_checkout_hours
 from app.services.visitors import VisitorCurrentlyPresentError, delete_visitor
 from app.templating import templates
 from app.config import get_settings
@@ -88,24 +90,51 @@ def logout() -> RedirectResponse:
 def mitarbeiter_liste(
     request: Request, db: Session = Depends(get_db), admin: AdminUser = Depends(get_current_admin)
 ) -> HTMLResponse:
-    mitarbeiter = list(db.scalars(select(Employee).order_by(Employee.nachname, Employee.vorname)))
+    mitarbeiter = list(db.scalars(select(Employee).order_by(Employee.erstellt_am)))
+    anwesend = {
+        m.id: is_present(db, "employee", m.id) for m in mitarbeiter
+    }
     unbekannte_karten = list(db.scalars(select(UnknownScan).order_by(UnknownScan.zuletzt_gesehen.desc())))
     return templates.TemplateResponse(
         request,
         "admin/mitarbeiter.html",
-        {"admin": admin, "mitarbeiter": mitarbeiter, "unbekannte_karten": unbekannte_karten},
+        {"admin": admin, "mitarbeiter": mitarbeiter, "anwesend": anwesend, "unbekannte_karten": unbekannte_karten},
     )
 
 
 @router.post("/mitarbeiter/anlegen")
 def mitarbeiter_anlegen(
-    vorname: str = Form(...),
-    nachname: str = Form(...),
+    rfid_uid: str = Form(...),
     db: Session = Depends(get_db),
     admin: AdminUser = Depends(get_current_admin),
 ) -> RedirectResponse:
-    db.add(Employee(vorname=vorname.strip(), nachname=nachname.strip()))
+    """Legt einen neuen Mitarbeiter-Eintrag direkt mit Dienstausweisnummer an -- es gibt
+    bewusst kein Namensfeld mehr (siehe app/models.py::Employee)."""
+    uid = rfid_uid.strip().upper()
+    bestehend = db.scalar(select(Employee).where(Employee.rfid_uid == uid))
+    if bestehend is not None:
+        raise HTTPException(status_code=409, detail="Diese Dienstausweisnummer ist bereits vergeben")
+    db.add(Employee(rfid_uid=uid, aktiv=True))
     db.commit()
+    unknown = db.get(UnknownScan, uid)
+    if unknown is not None:
+        db.delete(unknown)
+        db.commit()
+    return RedirectResponse(url="/admin/mitarbeiter", status_code=303)
+
+
+@router.post("/mitarbeiter/{employee_id}/auschecken")
+def mitarbeiter_auschecken(
+    employee_id: str, db: Session = Depends(get_db), admin: AdminUser = Depends(get_current_admin)
+) -> RedirectResponse:
+    """Manuelles Auschecken durch den Admin -- am Kiosk selbst geht das für Mitarbeiter
+    bewusst nicht mehr (keine Namen mehr in der Live-Übersicht, siehe app/routers/kiosk.py)."""
+    try:
+        checkout_person(
+            db, person_type="employee", person_id=employee_id, operator=f"Admin ({admin.username})"
+        )
+    except ValueError:
+        pass  # bereits ausgecheckt -> einfach zur Liste zurück
     return RedirectResponse(url="/admin/mitarbeiter", status_code=303)
 
 
@@ -288,13 +317,15 @@ def _log_eintraege(db: Session, von_dt: datetime | None, bis_dt: datetime | None
     if bis_dt is not None:
         query = query.where(CheckLog.timestamp <= bis_dt)
 
-    employees = {e.id: e.voller_name for e in db.scalars(select(Employee))}
+    # Für Mitarbeiter gibt es keinen Namen -- im Log/Export erscheint stattdessen die
+    # Dienstausweisnummer (die einzige gespeicherte Kennung, siehe app/models.py::Employee).
+    employees = {e.id: (e.rfid_uid or "(ohne Kartennummer)") for e in db.scalars(select(Employee))}
     visitors = {v.id: (v.voller_name, v.firma) for v in db.scalars(select(Visitor))}
 
     eintraege = []
     for entry in db.scalars(query):
         if entry.person_type == "employee":
-            name = employees.get(entry.person_id, "(gelöschter Mitarbeiter)")
+            name = employees.get(entry.person_id, "(gelöschter Mitarbeiter-Eintrag)")
             firma = None
         else:
             name, firma = visitors.get(entry.person_id, ("(gelöschtes Profil)", None))
@@ -395,3 +426,44 @@ def passwort_aendern(
     admin.password_hash = hash_password(neues_passwort)
     db.commit()
     return templates.TemplateResponse(request, "admin/passwort.html", {"admin": admin, "fehler": None, "erfolg": True})
+
+
+# --- Einstellungen -------------------------------------------------------------
+
+
+@router.get("/einstellungen", response_class=HTMLResponse)
+def einstellungen_form(
+    request: Request, db: Session = Depends(get_db), admin: AdminUser = Depends(get_current_admin)
+) -> HTMLResponse:
+    return templates.TemplateResponse(
+        request,
+        "admin/einstellungen.html",
+        {"admin": admin, "auto_checkout_stunden": get_auto_checkout_hours(db), "erfolg": False},
+    )
+
+
+@router.post("/einstellungen", response_class=HTMLResponse)
+def einstellungen_speichern(
+    request: Request,
+    auto_checkout_stunden: int = Form(...),
+    db: Session = Depends(get_db),
+    admin: AdminUser = Depends(get_current_admin),
+) -> HTMLResponse:
+    fehler = None
+    if auto_checkout_stunden < 0:
+        fehler = "Bitte 0 (deaktiviert) oder eine positive Stundenzahl angeben."
+
+    if fehler:
+        return templates.TemplateResponse(
+            request,
+            "admin/einstellungen.html",
+            {"admin": admin, "auto_checkout_stunden": get_auto_checkout_hours(db), "fehler": fehler, "erfolg": False},
+            status_code=400,
+        )
+
+    set_auto_checkout_hours(db, auto_checkout_stunden)
+    return templates.TemplateResponse(
+        request,
+        "admin/einstellungen.html",
+        {"admin": admin, "auto_checkout_stunden": auto_checkout_stunden, "erfolg": True},
+    )

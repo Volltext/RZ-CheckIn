@@ -1,0 +1,29 @@
+{% extends "admin/base.html" %}
+{% block admin_content %}
+<h1>Einstellungen</h1>
+
+<div class="karte">
+  <h2 style="margin-top:0;">Automatisches Auschecken</h2>
+  <p>
+    Falls jemand vergisst, sich beim Verlassen auszuchecken, checkt das System die
+    Person nach der hier eingestellten Anzahl Stunden automatisch aus (Mitarbeiter wie
+    externe Besucher). Der Eintrag im Log ist als <code>automatisch</code> gekennzeichnet.
+  </p>
+  {% if erfolg %}<p class="hinweis-erfolg">Gespeichert.</p>{% endif %}
+  {% if fehler %}<p class="hinweis-fehler">{{ fehler }}</p>{% endif %}
+  <form class="formular" method="post" action="/admin/einstellungen">
+    <label for="auto_checkout_stunden">Automatisch auschecken nach (Stunden)</label>
+    <input
+      id="auto_checkout_stunden"
+      name="auto_checkout_stunden"
+      type="number"
+      min="0"
+      step="1"
+      value="{{ auto_checkout_stunden }}"
+      required
+    >
+    <p class="hinweis-klein" style="color:var(--admin-text-schwach);">0 = automatisches Auschecken deaktiviert.</p>
+    <button type="submit" class="button button-primary">Speichern</button>
+  </form>
+</div>
+{% endblock %}

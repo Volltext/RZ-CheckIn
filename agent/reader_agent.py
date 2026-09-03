@@ -1,7 +1,18 @@
 #!/usr/bin/env python3
-"""Reader-Agent für den Kiosk-PC: liest UIDs vom PN532-RFID-Leser (nfcpy) und meldet sie
+"""Reader-Agent für den Kiosk-PC: liest Karten-UIDs vom RFID-Leser (nfcpy) und meldet sie
 ans RZ-CheckIn-Backend. Läuft NICHT im Server-Container, sondern direkt auf dem
-Windows-Kiosk-PC (siehe Konzept Abschnitt 8.2), typischerweise als nssm-Dienst.
+Windows-Kiosk-PC (siehe Konzept Abschnitt 8.2).
+
+Referenzhardware ist der **NFC-Kartenleser USB ACR122U-A9 (RFID)**, siehe
+agent/README.md für den genauen Windows-Treiber-/Konfigurationsablauf (`reader =
+usb:072f:2200`). nfcpy unterstützt daneben auch PN532-Boards (UART/USB); für die
+gibt es ebenfalls Hinweise in agent/README.md.
+
+Dieses Modul enthält ausschließlich die Kernlogik (Reader-Loop, Heartbeat, Offline-
+Puffer) und lässt sich sowohl als reines Kommandozeilenprogramm (siehe `main()` unten)
+als auch eingebettet aus der Systray-Anwendung (agent/tray_app.py) verwenden -- letztere
+bündelt sich per PyInstaller zu einer einzelnen .exe mit Icon im Infobereich und einer
+kleinen Einstellungen-GUI, praktisch für den Autostart auf dem Kiosk-PC.
 
 Aufgaben:
   - Karten-UID lesen -> POST /api/checkin/rfid
@@ -265,6 +276,62 @@ def run_reader_loop(config: AgentConfig, spool: Spool, stop_event: threading.Eve
             stop_event.wait(5)
 
 
+class AgentRuntime:
+    """Bündelt Reader-Loop, Heartbeat und Offline-Spool-Flush zu einem startbaren/
+    stoppbaren Objekt. `main()` (reines Kommandozeilenprogramm) nutzt das genauso wie
+    agent/tray_app.py (Systray + Einstellungen-GUI) -- die eigentliche Agent-Logik lebt
+    an genau einer Stelle, die GUI ist nur eine dünne Hülle drumherum."""
+
+    def __init__(self, config: AgentConfig, *, on_status: Callable[[str], None] | None = None):
+        self.config = config
+        self.spool = Spool(Path(config.spool_path))
+        self._stop_event = threading.Event()
+        self._threads: list[threading.Thread] = []
+        # on_status(status): "online" | "offline" -- z.B. für ein Ampel-Icon im Systray.
+        self._on_status = on_status or (lambda status: None)
+
+    def _flush_spool(self) -> None:
+        self.spool.flush(lambda uid, ts: send_scan(self.config, uid, ts))
+
+    def _heartbeat_tick(self) -> None:
+        self._on_status("online" if send_heartbeat(self.config) else "offline")
+
+    def _reader_loop(self) -> None:
+        run_reader_loop(self.config, self.spool, self._stop_event)
+
+    def start(self) -> None:
+        if self._threads:
+            return  # bereits gestartet
+        self._stop_event.clear()
+        heartbeat_thread = BackgroundLoop(
+            self.config.heartbeat_interval, self._heartbeat_tick, self._stop_event, "heartbeat"
+        )
+        spool_thread = BackgroundLoop(
+            self.config.spool_flush_interval, self._flush_spool, self._stop_event, "spool-flush"
+        )
+        reader_thread = threading.Thread(target=self._reader_loop, name="reader", daemon=True)
+        heartbeat_thread.start()
+        spool_thread.start()
+        reader_thread.start()
+        self._threads = [heartbeat_thread, spool_thread, reader_thread]
+        LOG.info(
+            "Agent gestartet: agent_id=%s server=%s reader=%s",
+            self.config.agent_id,
+            self.config.server_url,
+            self.config.reader,
+        )
+
+    def stop(self, timeout: float = 2.0) -> None:
+        self._stop_event.set()
+        for thread in self._threads:
+            thread.join(timeout=timeout)
+        self._threads = []
+
+    def simulate_scan(self, uid: str) -> None:
+        handle_scan(self.config, self.spool, uid)
+        self._flush_spool()
+
+
 def _setup_logging(config: AgentConfig, verbose: bool) -> None:
     handlers: list[logging.Handler] = [logging.StreamHandler(sys.stdout)]
     if config.log_path:
@@ -289,45 +356,40 @@ def main(argv: list[str] | None = None) -> int:
     config = AgentConfig.from_file(args.config)
     _setup_logging(config, args.verbose)
 
-    spool = Spool(Path(config.spool_path))
-    stop_event = threading.Event()
-
-    def flush_spool() -> None:
+    if args.simulate_uid:
+        # Simulation braucht keine Reader-Hardware -- eigener, einfacherer Ablauf statt
+        # über AgentRuntime.start() (das würde zusätzlich den echten Reader-Thread starten).
+        spool = Spool(Path(config.spool_path))
+        handle_scan(config, spool, args.simulate_uid)
         spool.flush(lambda uid, ts: send_scan(config, uid, ts))
-
-    def start_background_tasks() -> tuple[BackgroundLoop, BackgroundLoop]:
+        if args.once:
+            return 0
+        # Ohne --once: Heartbeat/Spool-Flush weiterlaufen lassen, um z.B. das Nachsenden
+        # bei einem simulierten Verbindungsabbruch zu beobachten.
+        stop_event = threading.Event()
         heartbeat_thread = BackgroundLoop(config.heartbeat_interval, lambda: send_heartbeat(config), stop_event, "heartbeat")
-        spool_thread = BackgroundLoop(config.spool_flush_interval, flush_spool, stop_event, "spool-flush")
+        spool_thread = BackgroundLoop(config.spool_flush_interval, lambda: spool.flush(lambda uid, ts: send_scan(config, uid, ts)), stop_event, "spool-flush")
         heartbeat_thread.start()
         spool_thread.start()
-        return heartbeat_thread, spool_thread
-
-    def run_until_interrupted(foreground: Callable[[], None]) -> None:
-        heartbeat_thread, spool_thread = start_background_tasks()
+        LOG.info("Simulierter Scan gesendet, Heartbeat/Spool-Flush laufen weiter (Strg+C zum Beenden)")
         try:
-            foreground()
+            stop_event.wait()
         except KeyboardInterrupt:
             LOG.info("Beende auf Benutzerwunsch (Strg+C)")
         finally:
             stop_event.set()
             heartbeat_thread.join(timeout=2)
             spool_thread.join(timeout=2)
-
-    if args.simulate_uid:
-        handle_scan(config, spool, args.simulate_uid)
-        flush_spool()
-        if args.once:
-            return 0
-        # Ohne --once: Hintergrund-Tasks (Heartbeat, Spool-Flush) weiterlaufen lassen,
-        # um z.B. das Nachsenden bei einem simulierten Verbindungsabbruch zu beobachten.
-        LOG.info("Simulierter Scan gesendet, Heartbeat/Spool-Flush laufen weiter (Strg+C zum Beenden)")
-        run_until_interrupted(lambda: stop_event.wait())
         return 0
 
-    LOG.info(
-        "Reader-Agent startet: agent_id=%s server=%s reader=%s", config.agent_id, config.server_url, config.reader
-    )
-    run_until_interrupted(lambda: run_reader_loop(config, spool, stop_event))
+    runtime = AgentRuntime(config)
+    runtime.start()
+    try:
+        threading.Event().wait()  # bis Strg+C -- die eigentliche Arbeit läuft in den Hintergrund-Threads
+    except KeyboardInterrupt:
+        LOG.info("Beende auf Benutzerwunsch (Strg+C)")
+    finally:
+        runtime.stop()
     return 0
 
 

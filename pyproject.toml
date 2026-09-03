@@ -25,6 +25,17 @@ agent = [
     "pyserial>=3.5",
     "requests>=2.32",
 ]
+# Nur für die Systray-/GUI-Variante des Agenten bzw. den .exe-Build daraus, siehe
+# agent/README.md Abschnitt 5. tkinter (Einstellungen-Fenster) ist Teil der
+# Standard-Windows-Python-Installation und taucht hier bewusst nicht auf.
+agent-tray = [
+    "nfcpy>=1.0.4",
+    "pyserial>=3.5",
+    "requests>=2.32",
+    "pystray>=0.19",
+    "pillow>=10.0",
+    "pyinstaller>=6.0",
+]
 
 [build-system]
 requires = ["setuptools>=68"]

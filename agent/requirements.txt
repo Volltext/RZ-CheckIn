@@ -1,3 +1,6 @@
+# Kernabhängigkeiten des Reader-Agenten (reader_agent.py), reicht für den reinen
+# Kommandozeilenbetrieb. Für die Systray-/GUI-Variante bzw. den .exe-Build zusätzlich
+# requirements-tray.txt installieren (siehe agent/README.md, Abschnitt "Als .exe bauen").
 nfcpy>=1.0.4
 pyserial>=3.5
 requests>=2.32

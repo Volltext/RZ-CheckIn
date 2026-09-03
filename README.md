@@ -5,6 +5,14 @@ sich im Rechenzentrum befindet. Mitarbeiter checken automatisch per Dienstauswei
 (RFID/NFC) ein und aus, externe Techniker manuell über eine Kiosk-Oberfläche mit
 wiederverwendbarem Besucherprofil.
 
+**Datensparsamkeit bei internen Mitarbeitern**: Für Mitarbeiter wird bewusst
+ausschließlich die Dienstausweisnummer gespeichert — es gibt keinen Namen und keine
+sonstige Verknüpfung zu einer Person im System. Die Live-Übersicht zeigt für Mitarbeiter
+deshalb nur die Anzahl der aktuell Anwesenden (grüner Punkt + Zähler), keine Namen oder
+Kartennummern. Externe Besucher werden weiterhin mit Namen geführt (siehe Kiosk-Ansicht
+unten). Vergisst jemand das Auschecken, checkt das System automatisch nach einer im
+Admin-Bereich einstellbaren Anzahl Stunden aus (`/admin/einstellungen`).
+
 **Das System steuert keine Türen** — es ist ein reines Logging-System parallel zum
 bestehenden (dienstleistergesteuerten) Zutrittssystem.
 
@@ -36,18 +44,21 @@ Server (VM, intern)                      Kiosk-PC (Eingang RZ)
 
 Die Startseite (`/`) ist zweigeteilt:
 
-- **Links**: Live-Übersicht aller aktuell anwesenden Personen (Mitarbeiter + Externe),
-  jede Zeile mit einem "Auschecken"-Button für den manuellen Fall (z. B. wenn jemand
-  vergessen hat, die Karte beim Verlassen erneut vorzuhalten).
+- **Links**: Live-Übersicht.
+  - *Mitarbeiter (intern)*: nur die Anzahl der aktuell Anwesenden, dargestellt als
+    grüner Punkt + Zähler (kein Name, keine Kartennummer — siehe Datensparsamkeit oben).
+    Ein manuelles Auschecken einzelner Mitarbeiter gibt es am Kiosk deshalb bewusst
+    nicht mehr; dafür gibt es das automatische Auschecken nach Zeitablauf sowie bei
+    Bedarf den Admin-Bereich (`/admin/mitarbeiter`).
+  - *Externe Besucher*: wie bisher eine Liste mit Name/Firma/Zeit und
+    "Auschecken"-Button pro Zeile (z. B. wenn jemand vergessen hat, sich abzumelden).
 - **Rechts**: Scan-Bereich. Im Ruhezustand zeigt er ein "Bereit zum Einlesen"-Icon; nach
   einem Scan erscheint dort für ein paar Sekunden das Ergebnis (eingecheckt/ausgecheckt,
   mit Ton) und darunter der Button für externe Besucher.
-- **Selbstregistrierung**: hält jemand eine noch unbekannte Karte an den Reader, zeigt
-  der Scan-Bereich statt einer Fehlermeldung direkt ein kleines Formular (Vor-/Nachname)
-  an — Absenden legt den Mitarbeiter an und checkt ihn sofort ein, ganz ohne Umweg über
-  den Admin-Bereich. Das Formular bleibt dabei bewusst länger stehen (90 statt 8
-  Sekunden) und wird nicht durch das Hintergrund-Polling überschrieben, solange dort
-  gerade getippt wird.
+- **Neue Dienstausweise**: hält jemand eine noch unbekannte Karte an den Reader, zeigt
+  der Scan-Bereich statt einer Fehlermeldung einen Hinweis mit einem
+  "Registrieren"-Button — ein Klick legt die Kartennummer an und checkt sofort ein, ganz
+  ohne Umweg über den Admin-Bereich und **ohne Namenseingabe**.
 
 ## Projektstruktur
 
@@ -97,18 +108,46 @@ Jeder Test läuft gegen eine frische, temporäre SQLite-Datenbank (siehe
 
 ## Datenmodell (Kurzfassung)
 
-- `employees` — Mitarbeiter, `rfid_uid` eindeutig, `aktiv`-Flag statt Löschen beim
-  Ausscheiden.
-- `visitors` — Besucher-Stammdaten, dauerhaft/wiederverwendbar; DSGVO-Löschung entfernt
-  die Zeile, das Log bleibt unangetastet (siehe unten).
+- `employees` — Mitarbeiter, geführt **ausschließlich über `rfid_uid`** (die
+  Dienstausweisnummer, eindeutig) + `aktiv`-Flag statt Löschen beim Ausscheiden. Bewusst
+  **kein Name und keine sonstige personenbezogene Angabe** (siehe Datensparsamkeit oben).
+  Die eigene `id` bleibt trotzdem bestehen, damit ein Kartentausch (verlorene/defekte
+  Karte) möglich ist, ohne die Anwesenheitshistorie unter einem neuen Eintrag
+  fortzuführen.
+- `visitors` — Besucher-Stammdaten (Name, Firma, Telefon), dauerhaft/wiederverwendbar;
+  DSGVO-Löschung entfernt die Zeile, das Log bleibt unangetastet (siehe unten).
 - `checklog` — append-only, `person_type` + `person_id` (kein FK, polymorpher Verweis),
-  `action` (checkin/checkout), `source` (rfid/manual). Der aktuelle "wer ist drin"-Status
-  wird immer aus dem letzten Eintrag pro Person **abgeleitet**, nie separat gepflegt
+  `action` (checkin/checkout), `source` (`rfid`/`manual`/`auto` — Letzteres fürs
+  automatische Auschecken). Der aktuelle "wer ist drin"-Status wird immer aus dem
+  letzten Eintrag pro Person **abgeleitet**, nie separat gepflegt
   (`app/services/attendance.py::list_present`).
 - `agents` — ein Eintrag pro Kiosk-PC, API-Key-Hash + `last_seen` für die
   PRTG-Überwachung.
 - `unknown_scans` — unbekannte UIDs, die am Reader gescannt wurden, zur späteren
   Zuordnung im Admin-Bereich.
+- `settings` — Key-Value-Ablage für zur Laufzeit im Admin-Bereich änderbare
+  Einstellungen (aktuell: `auto_checkout_hours`, siehe unten), im Unterschied zu
+  `app/config.py` (Umgebungsvariablen, nur beim Start gelesen).
+
+### Automatisches Auschecken
+
+Vergisst jemand (Mitarbeiter oder externer Besucher), sich auszuchecken, checkt ein
+Hintergrund-Task im Server-Prozess die Person automatisch aus, sobald der Check-in
+länger als die im Admin-Bereich unter **Einstellungen** (`/admin/einstellungen`)
+konfigurierte Anzahl Stunden zurückliegt (0 = deaktiviert, Standard 12h). Der Log-Eintrag
+ist als `source=auto`, `operator="System (automatisch)"` erkennbar. Geprüft wird alle
+`RZ_AUTO_CHECKOUT_CHECK_INTERVAL_SECONDS` (Standard 5 Minuten) — siehe
+`app/services/attendance.py::run_auto_checkout`.
+
+### Schema-Migration bestehender Installationen
+
+Es gibt bewusst kein separates Migrationswerkzeug (Alembic o.ä.) — beim Start
+(`app/db.py::init_db`) erkennt die Anwendung ein älteres Schema (z. B. `employees` mit
+noch vorhandenen Namensfeldern aus einer Version vor dieser Datenschutz-Anpassung) und
+hebt es automatisch auf den aktuellen Stand: Namen werden dabei bewusst **nicht**
+übernommen (genau das ist die fachliche Vorgabe), alle anderen Daten (Kartennummern,
+Log-Einträge) bleiben vollständig erhalten. Vor einem Update auf eine Version mit
+Datenmodelländerungen trotzdem ein reguläres Backup ziehen (siehe Abschnitt "Backup").
 
 ### Append-only-Schutz
 
@@ -211,25 +250,45 @@ Cronjob auf dem Host anlegen und **außerhalb** des Containers/Hosts aufbewahren
 ### Kiosk-PC (Windows)
 
 Siehe `deploy/KIOSK.md` (Browser im Kiosk-Modus, Absicherung) und `agent/README.md`
-(Reader-Agent als nssm-Dienst, PN532 als COM-Port).
+(Reader-Agent für den ACR122U-A9, als Kommandozeilen-Dienst (nssm) oder als
+Systray-.exe für den normalen Autostart, inkl. air-gapped Build-Anleitung).
 
 ### Monitoring (PRTG)
 
 Siehe `docs/PRTG.md`.
 
+## Air-Gapped-Betrieb
+
+Server und Kiosk-PC sind für den Betrieb ganz ohne Internetzugang ausgelegt:
+
+- **Server**: Das Container-Image wird auf einer Maschine mit Internetzugang einmalig
+  gebaut und als Tar exportiert (`podman save`), dann per USB-Stick/internem Fileshare
+  auf den Zielserver übertragen und dort per `podman load` gestartet — kein
+  Registry-Zugriff auf dem Server nötig (siehe "Super-easy Deployment" oben).
+- **Reader-Agent**: dieselbe Idee als "Wheelhouse" (vorab heruntergeladene
+  Python-Pakete) — einmal auf einem Rechner mit Internetzugang vorbereiten
+  (`agent/prepare_wheelhouse.ps1`), Ordner übertragen, damit air-gapped installieren
+  bzw. die `.exe` bauen (`agent/build_exe.ps1 -Wheelhouse ...`). Details in
+  `agent/README.md` Abschnitt 6. Die fertige `.exe` selbst braucht auf dem Kiosk-PC
+  danach keinerlei Netzwerkzugriff mehr.
+- Kein CDN-Import im Frontend, keine externen Schriften/Icons (siehe
+  "Frontend-Technologie" unten) — die Web-Oberfläche funktioniert komplett aus dem
+  Server heraus.
+
 ## Sicherheitsannahmen
 
 - Rein internes Tool: kein Internetzugang für Server oder Kiosk-PC nötig, Betrieb im
-  internen VLAN.
+  internen VLAN (siehe "Air-Gapped-Betrieb" oben).
 - Kiosk-Oberfläche (`/`, `/kiosk/...`) ist bewusst ohne Login — sie steht am Kiosk-PC vor
-  Ort und ihre Nutzung (Anwesenheitsliste einsehen, Besucher ein-/auschecken) ist nicht
-  schützenswert im gleichen Sinn wie der Admin-Bereich.
-- **Selbstregistrierung von Mitarbeitern** (unbekannte Karte → Namen direkt am Kiosk
-  eintragen, siehe oben) folgt demselben Vertrauensmodell: wer physisch bis zum Reader
+  Ort und ihre Nutzung (Live-Übersicht einsehen, Besucher ein-/auschecken, neue
+  Dienstausweise registrieren) ist nicht schützenswert im gleichen Sinn wie der
+  Admin-Bereich.
+- **Registrierung neuer Dienstausweise** (unbekannte Karte → per Knopfdruck am Kiosk
+  anlegen, siehe oben) folgt demselben Vertrauensmodell: wer physisch bis zum Reader
   vordringt, darf ohnehin ins Rechenzentrum. Der Zutritt selbst wird weiterhin vom
   bestehenden Zutrittssystem kontrolliert (Konzept: "steuert keine Türen") — die
-  Selbstregistrierung entscheidet nicht, wer reindarf, sondern nur, wie der Name zu
-  einer ohnehin gültigen Karte im Protokoll erscheint.
+  Registrierung entscheidet nicht, wer reindarf, sondern nur, ab wann eine ohnehin
+  gültige Karte im Protokoll erscheint. Es wird dabei bewusst kein Name erfasst.
 - Admin-Bereich (`/admin/...`) ist Login-geschützt (Argon2-Passworthash, signierte
   Session-Cookies) und kann zusätzlich per `RZ_ADMIN_IP_ALLOWLIST` auf bestimmte
   Quell-IPs eingeschränkt werden.
@@ -262,5 +321,5 @@ Kiosk-Bildschirm bleibt bewusst immer dunkel (Wandmontage, aus der Distanz lesba
 
 **Polling & Formulare**: `app.js` überschreibt ein per Polling nachgeladenes Fragment
 nicht, solange der Nutzer gerade in einem darin enthaltenen Feld tippt (erkannt an
-Fokus *und* einem bereits eingegebenen Wert) — wichtig für die Selbstregistrierung, wo
-das Formular sonst während der Eingabe verschwinden könnte.
+Fokus *und* einem bereits eingegebenen Wert) — wichtig z. B. für die Besuchersuche, wo
+die Ergebnisliste sonst während der Eingabe verschwinden könnte.

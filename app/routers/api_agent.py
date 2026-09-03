@@ -31,11 +31,12 @@ def checkin_rfid(
 ) -> RfidScanResponse:
     outcome = record_rfid_scan(db, uid=payload.uid, timestamp=payload.timestamp)
     # UID nur bei unbekannter Karte mitschicken -- der Kiosk braucht sie für die
-    # Selbstregistrierung (siehe app/routers/kiosk.py), sonst ist sie fürs UI irrelevant.
-    push_event(outcome.result, outcome.name, uid=payload.uid if outcome.result == "unknown_card" else None)
+    # Registrierung (siehe app/routers/kiosk.py), sonst ist sie fürs UI irrelevant. Es
+    # gibt bewusst keinen Namen im Feedback-Event -- Mitarbeiter werden nur über ihre
+    # Dienstausweisnummer geführt (siehe app/models.py::Employee).
+    push_event(outcome.result, uid=payload.uid if outcome.result == "unknown_card" else None)
     return RfidScanResponse(
         result=outcome.result,
-        name=outcome.name,
         action_timestamp=outcome.action_timestamp,
     )
 

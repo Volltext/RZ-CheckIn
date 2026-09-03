@@ -12,6 +12,7 @@
       {% include "kiosk/_presence.html" %}
     </div>
   </section>
+  {# extern/intern_anzahl kommen aus app/routers/kiosk.py::kiosk_home bzw. presence_partial #}
 
   <section class="kiosk-col kiosk-col-scan">
     <div id="feedback-banner" data-poll-url="/kiosk/feedback-partial" data-poll-interval="2000">
@@ -24,8 +25,10 @@
 </main>
 
 <footer class="dsgvo-hinweis">
-  Hinweis: Zum Zutritt zum Rechenzentrum werden Name, ggf. Firma und Zeitpunkt von
-  Ein- und Auscheckung protokolliert. Die Daten dienen ausschließlich der
-  Zutrittsdokumentation und werden gemäß der geltenden Aufbewahrungsfrist gelöscht.
+  Hinweis: Zum Zutritt zum Rechenzentrum wird bei Mitarbeitern ausschließlich die
+  Dienstausweisnummer sowie der Zeitpunkt von Ein- und Auscheckung protokolliert (kein
+  Name). Bei externen Besuchern werden Name, ggf. Firma und Zeitpunkt protokolliert. Die
+  Daten dienen ausschließlich der Zutrittsdokumentation und werden gemäß der geltenden
+  Aufbewahrungsfrist gelöscht.
 </footer>
 {% endblock %}

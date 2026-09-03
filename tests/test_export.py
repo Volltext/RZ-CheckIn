@@ -22,7 +22,7 @@ def test_export_requires_admin_session(client):
 
 def test_export_contains_expected_columns_and_rows(client, db):
     _login(client, db)
-    employee = make_employee(db, vorname="Max", nachname="Mustermann", rfid_uid="AABBCCDD")
+    employee = make_employee(db, rfid_uid="AABBCCDD")
     t0 = datetime.now(timezone.utc)
     record_rfid_scan(db, uid="AABBCCDD", timestamp=t0)
 
@@ -36,14 +36,15 @@ def test_export_contains_expected_columns_and_rows(client, db):
     data_rows = rows[1:]
     assert len(data_rows) == 1
     assert data_rows[0][1] == "employee"
-    assert data_rows[0][2] == employee.voller_name
+    # Kein Name -- die Dienstausweisnummer ist die einzige gespeicherte Kennung.
+    assert data_rows[0][2] == employee.rfid_uid
     assert data_rows[0][4] == "checkin"
     assert data_rows[0][5] == "rfid"
 
 
 def test_export_date_filter_excludes_out_of_range_entries(client, db):
     _login(client, db)
-    make_employee(db, vorname="Max", nachname="Mustermann", rfid_uid="AABBCCDD")
+    make_employee(db, rfid_uid="AABBCCDD")
     old_timestamp = datetime.now(timezone.utc) - timedelta(days=10)
     record_rfid_scan(db, uid="AABBCCDD", timestamp=old_timestamp)
 

@@ -63,6 +63,8 @@ ohne Eingriff wieder im Kiosk-Modus startet.
 
 ## 5. DSGVO-Hinweis
 
-Der Kiosk-Bildschirm zeigt dauerhaft im Fußbereich einen Hinweis, dass Name, ggf. Firma
-und Zeitpunkt von Ein-/Auscheckung protokolliert werden (siehe `app/templates/kiosk/index.html`).
-Diesen Text bei Bedarf an die Formulierung des Datenschutzbeauftragten anpassen.
+Der Kiosk-Bildschirm zeigt dauerhaft im Fußbereich einen Hinweis, dass bei Mitarbeitern
+ausschließlich die Dienstausweisnummer (kein Name), bei externen Besuchern Name, ggf.
+Firma und jeweils der Zeitpunkt von Ein-/Auscheckung protokolliert werden (siehe
+`app/templates/kiosk/index.html`). Diesen Text bei Bedarf an die Formulierung des
+Datenschutzbeauftragten anpassen.
