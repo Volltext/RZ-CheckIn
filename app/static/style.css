@@ -7,10 +7,17 @@
   --farbe-flaeche-hell: #f8fafc;
   --farbe-text: #0f172a;
   --farbe-text-hell: #f8fafc;
+  --farbe-text-gedaempft: #94a3b8;
   --farbe-akzent: #2563eb;
   --farbe-erfolg: #16a34a;
   --farbe-warnung: #dc2626;
   --farbe-rand: #cbd5e1;
+
+  /* Einheitliche Rundungs-Stufen für Kiosk + Admin: klein für Buttons/Eingaben/Zeilen,
+     mittel für Karten/Container, groß für die großen Touch-Karten der Raumauswahl. */
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
 
   /* Admin-Bereich: hell per Default, siehe prefers-color-scheme unten für Dark Mode. */
   --admin-bg: #f1f5f9;
@@ -21,6 +28,7 @@
   --admin-input-bg: #ffffff;
   --admin-nav-bg: #1e293b;
   --admin-nav-text: #f8fafc;
+  --admin-schatten: 0 1px 2px rgba(15, 23, 42, 0.04), 0 6px 16px rgba(15, 23, 42, 0.06);
 }
 
 /* Der Kiosk-Bildschirm bleibt bewusst immer dunkel (Wandmontage, Lesbarkeit aus der
@@ -36,6 +44,7 @@
     --admin-input-bg: #0f172a;
     --admin-nav-bg: #0b1220;
     --admin-nav-text: #e2e8f0;
+    --admin-schatten: 0 1px 2px rgba(0, 0, 0, 0.2), 0 6px 16px rgba(0, 0, 0, 0.28);
   }
 }
 
@@ -56,6 +65,20 @@ body.kiosk {
   flex-direction: column;
 }
 
+/* Einheitliche, zurückhaltende Überschriften-Basis über Kiosk + Admin hinweg -- die
+   Betonung einer Seite liegt auf ihren Karten/Buttons, nicht auf einem großen, lauten
+   Titel. Größe/Farbe je Kontext weiter unten. */
+h1, h2, h3 { margin: 0 0 0.6rem; font-weight: 600; line-height: 1.3; }
+
+/* Seitentitel im Admin-/Login-Bereich: klein und gedämpft statt der großen fetten
+   Browser-Vorgabe. */
+body:not(.kiosk) h1 {
+  font-size: 1.05rem;
+  color: var(--admin-text-schwach);
+  letter-spacing: 0.01em;
+  margin: 0 0 1.25rem;
+}
+
 header.kiosk-header {
   padding: 1.5rem 2rem 0.5rem;
   display: flex;
@@ -63,9 +86,13 @@ header.kiosk-header {
   align-items: baseline;
 }
 
+/* Seitentitel im Kiosk (Dashboard + Externer-Besucher-Maske): kleiner und gedämpfter
+   als zuvor, bleibt aber dank heller Grundfarbe auf dem dunklen Hintergrund noch aus
+   der Distanz lesbar (Wandmontage). */
 header.kiosk-header h1 {
   margin: 0;
-  font-size: 1.75rem;
+  font-size: 1.3rem;
+  color: #cbd5e1;
 }
 
 main {
@@ -88,20 +115,28 @@ main {
 
 .kiosk-room {
   background: var(--farbe-flaeche);
-  border-radius: 0.75rem;
+  border-radius: var(--radius-md);
   padding: 1.3rem 1.5rem;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
   /* Grid-Items schrumpfen sonst nicht unter die Breite ihres Inhalts (Standard
      min-width:auto) -- ohne das hier würde eine lange Besucherliste die Karte über die
      Breite ihrer Grid-Spalte hinaus aufdrücken, siehe .besucher-liste unten. */
   min-width: 0;
 }
-.kiosk-room h2 { margin: 0 0 0.8rem; font-size: 1.3rem; }
-.kiosk-room h3 { margin: 1.2rem 0 0.4rem; font-size: 1rem; }
+.kiosk-room h2 { margin: 0 0 0.8rem; font-size: 1.1rem; }
+.kiosk-room h3 {
+  margin: 1.2rem 0 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--farbe-text-gedaempft);
+}
 
 /* Externe Besucher je Raum: bewusst eine umbrechende Liste statt einer Tabelle mit
    festen Spalten -- eine Tabelle (Name/Firma/Zeit/Button nebeneinander) passt nicht in
    eine schmale Raum-Karte und würde die Karte breiter als ihre Grid-Spalte machen. */
-.besucher-liste { list-style: none; margin: 1rem 0 0; padding: 0; display: flex; flex-direction: column; gap: 0.6rem; }
+.besucher-liste { list-style: none; margin: 0.75rem 0 0; padding: 0; display: flex; flex-direction: column; gap: 0.5rem; }
 .besucher-liste li {
   display: flex;
   align-items: center;
@@ -110,12 +145,12 @@ main {
   gap: 0.5rem 0.75rem;
   padding: 0.6rem 0.8rem;
   background: rgba(255, 255, 255, 0.05);
-  border-radius: 0.5rem;
+  border-radius: var(--radius-sm);
 }
 .besucher-liste-info { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.3rem 0.6rem; min-width: 0; overflow-wrap: anywhere; }
 .besucher-liste-name { font-weight: 600; }
-.besucher-liste-firma { color: #94a3b8; font-size: 0.9rem; }
-.besucher-liste-zeit { color: #94a3b8; font-size: 0.8rem; white-space: nowrap; }
+.besucher-liste-firma { color: var(--farbe-text-gedaempft); font-size: 0.9rem; }
+.besucher-liste-zeit { color: var(--farbe-text-gedaempft); font-size: 0.8rem; white-space: nowrap; }
 
 .kiosk-buttons {
   display: flex;
@@ -154,14 +189,17 @@ main {
 .button {
   display: inline-block;
   padding: 0.9rem 1.6rem;
-  border-radius: 0.5rem;
+  border-radius: var(--radius-sm);
   border: none;
   font-size: 1.1rem;
   cursor: pointer;
   text-decoration: none;
   text-align: center;
   touch-action: manipulation;
+  transition: filter 0.12s ease, transform 0.08s ease, box-shadow 0.12s ease;
 }
+.button:hover { filter: brightness(1.08); }
+.button:active { transform: scale(0.97); }
 body.kiosk .button, body.kiosk button { min-height: 3.2rem; }
 .button-klein { padding: 0.4rem 0.8rem; font-size: 0.85rem; border-radius: 0.4rem; }
 body.kiosk .button.button-klein { min-height: 0; }
@@ -170,10 +208,14 @@ body.kiosk .button.button-klein { min-height: 0; }
 .button-erfolg { background: var(--farbe-erfolg); color: white; }
 .button-warnung { background: var(--farbe-warnung); color: white; }
 .button-sekundaer { background: var(--farbe-flaeche); color: var(--farbe-text-hell); border: 1px solid #475569; }
+body:not(.kiosk) .button-sekundaer { background: var(--admin-karte-bg); color: var(--admin-text); border: 1px solid var(--admin-rand); }
 
 table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
 th, td { text-align: left; padding: 0.6rem 0.8rem; border-bottom: 1px solid rgba(148, 163, 184, 0.3); }
+th { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; color: var(--farbe-text-gedaempft); }
 body:not(.kiosk) th, body:not(.kiosk) td { border-bottom: 1px solid var(--admin-rand); }
+body:not(.kiosk) th { color: var(--admin-text-schwach); }
+body:not(.kiosk) tbody tr:hover { background: rgba(37, 99, 235, 0.05); }
 
 #feedback-banner {
   min-height: 5.5rem;
@@ -185,7 +227,7 @@ body:not(.kiosk) th, body:not(.kiosk) td { border-bottom: 1px solid var(--admin-
 
 .feedback {
   padding: 1.2rem 1.4rem;
-  border-radius: 0.6rem;
+  border-radius: var(--radius-sm);
   font-size: 1.2rem;
   width: 100%;
   display: flex;
@@ -207,15 +249,15 @@ body:not(.kiosk) th, body:not(.kiosk) td { border-bottom: 1px solid var(--admin-
   justify-content: center;
   opacity: 0.6;
 }
-.scan-icon { width: 32px; height: 32px; color: #94a3b8; }
-.hinweis-klein { font-size: 0.8rem; color: #94a3b8; margin: 0; }
+.scan-icon { width: 32px; height: 32px; color: var(--farbe-text-gedaempft); }
+.hinweis-klein { font-size: 0.8rem; color: var(--farbe-text-gedaempft); margin: 0; }
 
 /* Selbstregistrierung: unbekannte Karte -> Name eintragen. */
 .feedback-registrierung {
   width: 100%;
   background: rgba(37, 99, 235, 0.12);
   border: 1px solid var(--farbe-akzent);
-  border-radius: 0.6rem;
+  border-radius: var(--radius-md);
   padding: 1.2rem 1.4rem;
 }
 .feedback-registrierung p { margin: 0 0 0.8rem; }
@@ -247,9 +289,12 @@ body:not(.kiosk) th, body:not(.kiosk) td { border-bottom: 1px solid var(--admin-
    braucht etwas mehr Breite als das Suchen/Anlegen-Formular darunter. */
 .kiosk-besucher { max-width: 480px; margin: 0 auto; }
 .kiosk-besucher-wahl { max-width: 640px; }
+.kiosk-besucher h2 { font-size: 1.05rem; }
 
 /* Raumauswahl extra groß für Touch-Bedienung (Kiosk läuft ggf. an einem Touch-Terminal,
-   siehe README) -- als Karte mit Icon statt einem schlichten flachen Button. */
+   siehe README) -- als Karte mit Icon statt einem schlichten flachen Button. Dient als
+   Vorbild für die übrigen Karten/Buttons im Kiosk (Farbverlauf, Icon-Kreis, dezente
+   Hover/Press-Animation, siehe .button-cta oben). */
 .raum-wahl {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
@@ -263,12 +308,13 @@ body:not(.kiosk) th, body:not(.kiosk) td { border-bottom: 1px solid var(--admin-
   justify-content: center;
   gap: 1rem;
   padding: 2.75rem 1.5rem;
-  border-radius: 1rem;
+  border-radius: var(--radius-lg);
   background: linear-gradient(160deg, var(--farbe-flaeche) 0%, #16213a 100%);
   border: 1px solid #334155;
   color: var(--farbe-text-hell);
   text-decoration: none;
   touch-action: manipulation;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
   transition: transform 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
 }
 .raum-karte:hover, .raum-karte:focus-visible {
@@ -288,7 +334,7 @@ body:not(.kiosk) th, body:not(.kiosk) td { border-bottom: 1px solid var(--admin-
   color: #60a5fa;
 }
 .raum-karte-icon svg { width: 1.6rem; height: 1.6rem; }
-.raum-karte-name { font-size: 1.3rem; font-weight: 600; text-align: center; }
+.raum-karte-name { font-size: 1.2rem; font-weight: 600; text-align: center; }
 
 .raum-aktuell {
   display: flex;
@@ -324,7 +370,7 @@ body:not(.kiosk) th, body:not(.kiosk) td { border-bottom: 1px solid var(--admin-
   width: 100%;
   padding: 1rem 1.2rem;
   background: var(--farbe-flaeche);
-  border-radius: 0.6rem;
+  border-radius: var(--radius-sm);
   font-size: 1.05rem;
 }
 
@@ -337,25 +383,36 @@ body:not(.kiosk) th, body:not(.kiosk) td { border-bottom: 1px solid var(--admin-
   padding: 1.5rem 1rem;
   flex-shrink: 0;
 }
-.admin-nav a { display: block; color: var(--admin-nav-text); text-decoration: none; padding: 0.5rem 0.4rem; border-radius: 0.3rem; }
+.admin-nav h2 {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: rgba(248, 250, 252, 0.55);
+  margin: 0 0 1rem;
+  padding: 0 0.4rem;
+}
+.admin-nav a { display: block; color: var(--admin-nav-text); text-decoration: none; padding: 0.5rem 0.4rem; border-radius: var(--radius-sm); }
 .admin-nav a:hover { background: rgba(255,255,255,0.1); }
 .admin-content { flex: 1; padding: 2rem; max-width: 1000px; color: var(--admin-text); }
 
 .karte {
   background: var(--admin-karte-bg);
   border: 1px solid var(--admin-rand);
-  border-radius: 0.6rem;
+  border-radius: var(--radius-md);
   padding: 1.2rem 1.5rem;
   margin-bottom: 1.5rem;
   color: var(--admin-text);
+  box-shadow: var(--admin-schatten);
 }
+.karte h2 { font-size: 0.95rem; color: var(--admin-text); }
 
 form.formular { display: flex; flex-direction: column; gap: 0.7rem; max-width: 420px; }
 form.formular label { font-size: 0.9rem; font-weight: 600; }
 form.formular input, form.formular select {
   padding: 0.5rem 0.6rem;
   border: 1px solid var(--admin-rand);
-  border-radius: 0.4rem;
+  border-radius: var(--radius-sm);
   font-size: 1rem;
   background: var(--admin-input-bg);
   color: var(--admin-text);
@@ -370,6 +427,6 @@ form.formular-inline { display: inline; }
 
 .hinweis-fehler { color: var(--farbe-warnung); font-weight: 600; }
 .hinweis-erfolg { color: var(--farbe-erfolg); font-weight: 600; }
-.badge { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 1rem; font-size: 0.75rem; }
+.badge { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 999px; font-size: 0.75rem; }
 .badge-aktiv { background: rgba(22,163,74,0.15); color: var(--farbe-erfolg); }
 .badge-inaktiv { background: rgba(220,38,38,0.15); color: var(--farbe-warnung); }
