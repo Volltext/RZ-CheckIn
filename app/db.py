@@ -15,6 +15,7 @@ from contextlib import contextmanager
 from sqlalchemy import create_engine, event
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.pool import NullPool
 
 from app.config import get_settings
 
@@ -22,9 +23,19 @@ settings = get_settings()
 
 # check_same_thread=False: FastAPI kann Requests aus verschiedenen Threads bedienen;
 # wir serialisieren Schreibzugriffe ohnehin über WAL + kurze Transaktionen.
+#
+# poolclass=NullPool ist bewusst gewählt: mit dem SQLAlchemy-Standardpool (QueuePool)
+# hält der lange laufende Server-Prozess wiederverwendete Verbindungen, die unter
+# bestimmten Bedingungen einen veralteten WAL-Lesestand behalten -- Schreibzugriffe aus
+# einem ANDEREN Prozess (z.B. `podman exec ... python -m app.cli create-agent` oder der
+# tägliche `purge`-Wartungsjob, siehe deploy/rz-checkin-retention.service) waren dadurch
+# beobachtbar erst nach einem Server-Neustart sichtbar. NullPool öffnet für jede Session
+# eine frische SQLite-Verbindung (für eine lokale Datei praktisch kostenlos) und sieht
+# damit immer den zuletzt committeten Stand.
 engine = create_engine(
     f"sqlite:///{settings.database_file}",
     connect_args={"check_same_thread": False},
+    poolclass=NullPool,
     future=True,
 )
 
