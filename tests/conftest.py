@@ -16,7 +16,8 @@ os.environ.setdefault("RZ_SESSION_SECRET", "test-only-secret")
 os.environ.setdefault("RZ_SCAN_DEBOUNCE_SECONDS", "5")
 os.environ.setdefault("RZ_AGENT_OFFLINE_THRESHOLD_SECONDS", "90")
 os.environ.setdefault("RZ_RETENTION_DAYS", "730")
-os.environ.setdefault("RZ_ADMIN_PASSWORD", "")  # kein automatischer Admin-Bootstrap in Tests
+os.environ.setdefault("RZ_ADMIN_PASSWORD", "")
+os.environ.setdefault("RZ_ADMIN_AUTO_BOOTSTRAP", "false")  # Tests legen Admins selbst per Factory an
 
 from app.db import SessionLocal, engine, init_db  # noqa: E402
 from app.main import app  # noqa: E402

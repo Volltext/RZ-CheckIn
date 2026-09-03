@@ -121,7 +121,46 @@ und regelmäßige, unveränderliche Backups.
 
 ## Deployment
 
-### Server (Podman, ein Container)
+### Super-easy: fertiges Image laden und starten
+
+Für den schnellen Test oder ein Deployment ohne Build-Toolchain auf dem Server: ein
+exportiertes Image-Tar laden und direkt starten. Session-Secret und ein erster
+Admin-Zugang werden beim allerersten Start automatisch erzeugt (siehe unten) — es ist
+**nichts weiter zu konfigurieren**.
+
+```bash
+podman load -i rz-checkin-image.tar.gz
+podman run -d --name rz-checkin \
+  -p 8000:8000 \
+  -v rz_checkin_data:/data \
+  --restart on-failure \
+  rz-checkin:latest
+
+# Admin-Zugangsdaten aus den Logs des allerersten Starts holen:
+podman logs rz-checkin | grep -A3 Erststart
+```
+
+Danach ist die Kiosk-Oberfläche unter `http://<server>:8000/` erreichbar, der
+Admin-Bereich unter `http://<server>:8000/admin` (Zugangsdaten siehe oben, direkt nach
+dem ersten Login unter `/admin/passwort` ändern). `-v rz_checkin_data:/data` sorgt
+dafür, dass die SQLite-Datenbank und das automatisch erzeugte Session-Secret einen
+Container-Neustart oder -Update überleben — beim Neustart erscheinen dann keine neuen
+Zugangsdaten mehr in den Logs, der bestehende Admin bleibt gültig.
+
+Reader-Agenten (für die Kiosk-PCs) werden anschließend ganz normal im Admin-Bereich
+unter "Agenten" angelegt (siehe `agent/README.md`).
+
+Das Image-Tar selbst erzeugt man auf einer Maschine mit Build-Werkzeug einmalig aus dem
+Quellcode und verteilt es dann z. B. per USB-Stick oder internem Fileshare an den
+Zielserver (kein Registry-Zugriff auf dem Server nötig):
+
+```bash
+podman build -t rz-checkin:latest -f Containerfile .
+podman save rz-checkin:latest -o rz-checkin-image.tar.gz --format docker-archive
+# oder mit Docker gebaut: docker save rz-checkin:latest | gzip > rz-checkin-image.tar.gz
+```
+
+### Server (Podman, ein Container) — aus dem Quellcode bauen
 
 ```bash
 podman build -t rz-checkin:latest -f Containerfile .
@@ -132,8 +171,9 @@ Für den dauerhaften Betrieb die Podman-Quadlet-Unit verwenden (Autostart,
 
 1. `deploy/rz-checkin.container` nach `/etc/containers/systemd/` kopieren und anpassen
    (Image-Quelle, `EnvironmentFile`).
-2. Secrets (insb. `RZ_SESSION_SECRET`) in `/etc/rz-checkin/rz-checkin.env` ablegen,
-   Dateirechte einschränken (`chmod 600`).
+2. Optional: eigene Secrets (`RZ_SESSION_SECRET`, `RZ_ADMIN_PASSWORD`, ...) in
+   `/etc/rz-checkin/rz-checkin.env` ablegen, Dateirechte einschränken (`chmod 600`).
+   Ohne diese Datei funktioniert der Start trotzdem — siehe "Super-easy" oben.
 3. `systemctl daemon-reload && systemctl start rz-checkin.service`
 
 Retention-Wartungsjob: `deploy/rz-checkin-retention.service` +
@@ -176,6 +216,12 @@ Siehe `docs/PRTG.md`.
 - Ein lokaler Admin-User genügt für v1. Der Login läuft hinter einem
   `AuthProvider`-Protokoll (`app/auth/`), damit sich später ein LDAP/AD-Provider
   ergänzen lässt, ohne das Datenmodell zu ändern.
+- **Automatischer Admin-Bootstrap**: Ist beim allerersten Start kein `RZ_ADMIN_PASSWORD`
+  gesetzt, legt der Container selbst einen Admin mit einem zufälligen Passwort an und
+  zeigt es einmalig in den Logs (`podman logs`) an — damit ist ein frisch gestarteter
+  Container ohne weitere Einrichtung sofort nutzbar (siehe "Super-easy Deployment"
+  oben). Wer das nicht möchte (z. B. automatisiertes Deployment mit separat
+  provisioniertem Admin), setzt `RZ_ADMIN_AUTO_BOOTSTRAP=false`.
 
 ## Frontend-Technologie
 

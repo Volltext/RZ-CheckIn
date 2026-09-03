@@ -9,6 +9,7 @@ data/
 *.db-wal
 .pytest_cache/
 *.egg-info/
+dist/
 agent/agent.ini
 agent/agent_spool.jsonl
 agent/reader_agent.log

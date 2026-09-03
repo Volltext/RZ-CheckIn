@@ -20,6 +20,11 @@ class Settings(BaseSettings):
 
     admin_user: str = "admin"
     admin_password: str = ""
+    # Ist kein RZ_ADMIN_PASSWORD gesetzt, legt der Erststart automatisch einen Admin mit
+    # zufälligem Passwort an (in den Logs sichtbar) -- so ist ein frisch gestarteter
+    # Container ohne weitere Einrichtung sofort nutzbar. Für Tests und Deployments, die
+    # den Admin bewusst separat provisionieren, per RZ_ADMIN_AUTO_BOOTSTRAP=false abschaltbar.
+    admin_auto_bootstrap: bool = True
 
     scan_debounce_seconds: int = 5
     agent_offline_threshold_seconds: int = 90

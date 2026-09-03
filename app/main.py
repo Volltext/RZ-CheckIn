@@ -1,8 +1,11 @@
-"""FastAPI-App-Zusammenbau: Router registrieren, DB beim Start initialisieren, optional
-einen ersten Admin-User aus RZ_ADMIN_USER/RZ_ADMIN_PASSWORD anlegen."""
+"""FastAPI-App-Zusammenbau: Router registrieren, DB beim Start initialisieren, ersten
+Admin-User anlegen (aus RZ_ADMIN_USER/RZ_ADMIN_PASSWORD, oder automatisch mit einem
+zufälligen Passwort, damit ein frisch gestarteter Container ohne weitere Konfiguration
+sofort nutzbar ist -- siehe Containerfile/docker-entrypoint.sh)."""
 
 from __future__ import annotations
 
+import secrets
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -21,13 +24,31 @@ settings = get_settings()
 
 
 def _bootstrap_admin() -> None:
-    if not settings.admin_password:
+    if not settings.admin_password and not settings.admin_auto_bootstrap:
         return
+
     with session_scope() as db:
         exists = db.scalar(select(AdminUser).limit(1))
         if exists is not None:
             return
-        db.add(AdminUser(username=settings.admin_user, password_hash=hash_password(settings.admin_password)))
+
+        password = settings.admin_password
+        generated = not password
+        if generated:
+            password = secrets.token_urlsafe(12)
+
+        db.add(AdminUser(username=settings.admin_user, password_hash=hash_password(password)))
+
+        if generated:
+            # Gut sichtbar in "podman logs" -- ohne RZ_ADMIN_PASSWORD-Umgebungsvariable
+            # bekommt der allererste Start einen zufälligen Admin-Zugang, damit der
+            # Container ohne weitere Einrichtung sofort nutzbar ist.
+            print("=" * 72, flush=True)
+            print("RZ-CheckIn: Erststart -- Admin-Zugang wurde automatisch angelegt:", flush=True)
+            print(f"  Benutzername: {settings.admin_user}", flush=True)
+            print(f"  Passwort:     {password}", flush=True)
+            print("  Bitte nach der ersten Anmeldung unter /admin/passwort aendern!", flush=True)
+            print("=" * 72, flush=True)
 
 
 @asynccontextmanager
