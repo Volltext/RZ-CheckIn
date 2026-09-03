@@ -37,6 +37,9 @@ class PresentPerson:
     name: str | None
     firma: str | None
     checkin_zeit: datetime
+    # Technikraum des Checkin-Eintrags (= Agent.agent_id, siehe app/models.py::CheckLog).
+    # None, wenn keine Raumzuordnung vorliegt.
+    raum: str | None = None
 
 
 def _now() -> datetime:
@@ -61,13 +64,14 @@ def is_present(db: Session, person_type: str, person_id: str) -> bool:
 # anwesend. Läuft direkt gegen SQLite (>= 3.25, window functions).
 _PRESENT_QUERY = text(
     """
-    SELECT person_type, person_id, timestamp
+    SELECT person_type, person_id, timestamp, raum
     FROM (
         SELECT
             person_type,
             person_id,
             action,
             timestamp,
+            raum,
             ROW_NUMBER() OVER (
                 PARTITION BY person_type, person_id
                 ORDER BY timestamp DESC, id DESC
@@ -111,6 +115,7 @@ def list_present(db: Session) -> list[PresentPerson]:
                     name=None,  # bewusst kein Name -- siehe PresentPerson-Docstring
                     firma=None,
                     checkin_zeit=checkin_zeit,
+                    raum=row.raum,
                 )
             )
         else:
@@ -126,6 +131,7 @@ def list_present(db: Session) -> list[PresentPerson]:
                     name=visitor.voller_name,
                     firma=visitor.firma,
                     checkin_zeit=checkin_zeit,
+                    raum=row.raum,
                 )
             )
     result.sort(key=lambda p: p.checkin_zeit)
@@ -143,10 +149,13 @@ def _record_unknown_scan(db: Session, uid: str, seen_at: datetime) -> None:
 
 
 def record_rfid_scan(
-    db: Session, *, uid: str, timestamp: datetime | None = None
+    db: Session, *, uid: str, timestamp: datetime | None = None, raum: str | None = None
 ) -> RfidScanOutcome:
     """Verarbeitet einen RFID-Scan: togglet Checkin/Checkout für bekannte, aktive
-    Mitarbeiter; merkt sich unbekannte UIDs zur späteren Zuordnung im Admin-Bereich."""
+    Mitarbeiter; merkt sich unbekannte UIDs zur späteren Zuordnung im Admin-Bereich.
+
+    `raum` ist die Agent-ID des scannenden Readers (ein Agent pro Technikraum, siehe
+    app/models.py::Agent) und wird unverändert auf den Log-Eintrag übernommen."""
 
     event_time = timestamp or _now()
 
@@ -174,16 +183,20 @@ def record_rfid_scan(
         action=action,
         source="rfid",
         timestamp=event_time,
+        raum=raum,
     )
     db.add(entry)
     db.commit()
     return RfidScanOutcome(result=action, action_timestamp=event_time)
 
 
-def checkin_visitor(db: Session, *, visitor_id: str) -> CheckLog:
+def checkin_visitor(db: Session, *, visitor_id: str, raum: str | None = None) -> CheckLog:
+    """`raum` ist die Agent-ID des am Kiosk gewählten Technikraums (siehe
+    app/routers/kiosk.py -- Besucher haben keinen eigenen Reader, deshalb wählt der
+    Besucher den Raum manuell statt dass er wie bei Mitarbeitern vom Agenten kommt)."""
     if is_present(db, "visitor", visitor_id):
         raise ValueError("Besucher ist bereits eingecheckt")
-    entry = CheckLog(person_type="visitor", person_id=visitor_id, action="checkin", source="manual")
+    entry = CheckLog(person_type="visitor", person_id=visitor_id, action="checkin", source="manual", raum=raum)
     db.add(entry)
     db.commit()
     db.refresh(entry)
@@ -214,6 +227,17 @@ def checkout_person(
     db.commit()
     db.refresh(entry)
     return entry
+
+
+def presence_by_room(db: Session) -> dict[str | None, list[PresentPerson]]:
+    """Gruppiert die aktuell anwesenden Personen nach Technikraum (PresentPerson.raum,
+    siehe dort) für die Split-Ansicht im Kiosk-Dashboard (app/routers/kiosk.py). Der
+    Schlüssel `None` fasst Personen ohne Raumzuordnung zusammen (z. B. Alteinträge von
+    vor Einführung dieser Funktion)."""
+    result: dict[str | None, list[PresentPerson]] = {}
+    for person in list_present(db):
+        result.setdefault(person.raum, []).append(person)
+    return result
 
 
 def count_present_employees(db: Session) -> int:

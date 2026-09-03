@@ -24,12 +24,11 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db import get_db
-from app.models import CheckLog, Employee, UnknownScan, Visitor
+from app.models import Agent, CheckLog, Employee, UnknownScan, Visitor
 from app.services.attendance import (
     checkin_visitor,
     checkout_person,
-    count_present_employees,
-    list_present,
+    presence_by_room,
 )
 from app.services.feedback import latest_event, push_event
 from app.templating import templates
@@ -37,14 +36,51 @@ from app.templating import templates
 router = APIRouter(tags=["kiosk"])
 
 
+def _resolve_raum(db: Session, raum: str) -> str | None:
+    """Validiert eine vom Kiosk übermittelte Raum-Angabe gegen die vorhandenen Agenten
+    (siehe app/models.py::Agent -- ein Agent pro Technikraum). Unbekannte/leere Werte
+    werden zu None, statt beliebigen Text ins Log zu übernehmen."""
+    raum = (raum or "").strip()
+    if not raum:
+        return None
+    return raum if db.get(Agent, raum) is not None else None
+
+
+def _room_context(db: Session) -> dict:
+    """Baut die Split-Ansicht je Technikraum für Kiosk-Startseite + Presence-Partial:
+    ein Eintrag pro vorhandenem Agenten (= Raum) mit Mitarbeiterzahl (nur Punkte/Zähler,
+    siehe app/services/attendance.py::PresentPerson) und externen Besuchern, plus ein
+    Sammel-Eintrag für Personen ohne (mehr) gültige Raumzuordnung."""
+    agenten = list(db.scalars(select(Agent).order_by(Agent.agent_id)))
+    anwesenheit = presence_by_room(db)
+
+    rooms = []
+    for agent in agenten:
+        personen = anwesenheit.get(agent.agent_id, [])
+        rooms.append(
+            {
+                "agent": agent,
+                "mitarbeiter_anzahl": sum(1 for p in personen if p.person_type == "employee"),
+                "extern": [p for p in personen if p.person_type == "visitor"],
+            }
+        )
+
+    bekannte_raeume = {a.agent_id for a in agenten}
+    unzugeordnet = [
+        p for raum, personen in anwesenheit.items() if raum not in bekannte_raeume for p in personen
+    ]
+    return {
+        "rooms": rooms,
+        "unzugeordnet_mitarbeiter_anzahl": sum(1 for p in unzugeordnet if p.person_type == "employee"),
+        "unzugeordnet_extern": [p for p in unzugeordnet if p.person_type == "visitor"],
+    }
+
+
 @router.get("/", response_class=HTMLResponse)
 def kiosk_home(request: Request, db: Session = Depends(get_db)) -> HTMLResponse:
-    extern = [p for p in list_present(db) if p.person_type == "visitor"]
-    intern_anzahl = count_present_employees(db)
-    event = latest_event()
-    return templates.TemplateResponse(
-        request, "kiosk/index.html", {"extern": extern, "intern_anzahl": intern_anzahl, "event": event}
-    )
+    context = _room_context(db)
+    context["event"] = latest_event()
+    return templates.TemplateResponse(request, "kiosk/index.html", context)
 
 
 @router.post("/kiosk/auschecken/visitor/{person_id}")
@@ -62,11 +98,14 @@ def manuelles_auschecken(person_id: str, db: Session = Depends(get_db)) -> Redir
 @router.post("/kiosk/mitarbeiter/registrieren")
 def mitarbeiter_karte_registrieren(
     rfid_uid: str = Form(...),
+    raum: str = Form(""),
     db: Session = Depends(get_db),
 ) -> RedirectResponse:
     """Nach einem Scan einer unbekannten Karte (siehe kiosk/_feedback.html) kann die
     Karte per Knopfdruck direkt am Kiosk als neuer Dienstausweis registriert werden --
-    ohne Namenseingabe, es wird ausschließlich die Kartennummer gespeichert."""
+    ohne Namenseingabe, es wird ausschließlich die Kartennummer gespeichert. `raum` kommt
+    als verstecktes Feld aus dem Scan-Event mit (Agent-ID des Readers, der die
+    unbekannte Karte gesehen hat, siehe app/services/feedback.py::ScanFeedbackEvent)."""
     uid = rfid_uid.strip().upper()
 
     existing = db.scalar(select(Employee).where(Employee.rfid_uid == uid))
@@ -79,7 +118,15 @@ def mitarbeiter_karte_registrieren(
     employee = Employee(rfid_uid=uid, aktiv=True)
     db.add(employee)
     db.flush()
-    db.add(CheckLog(person_type="employee", person_id=employee.id, action="checkin", source="manual"))
+    db.add(
+        CheckLog(
+            person_type="employee",
+            person_id=employee.id,
+            action="checkin",
+            source="manual",
+            raum=_resolve_raum(db, raum),
+        )
+    )
 
     unknown = db.get(UnknownScan, uid)
     if unknown is not None:
@@ -92,11 +139,7 @@ def mitarbeiter_karte_registrieren(
 
 @router.get("/kiosk/presence-partial", response_class=HTMLResponse)
 def presence_partial(request: Request, db: Session = Depends(get_db)) -> HTMLResponse:
-    extern = [p for p in list_present(db) if p.person_type == "visitor"]
-    intern_anzahl = count_present_employees(db)
-    return templates.TemplateResponse(
-        request, "kiosk/_presence.html", {"extern": extern, "intern_anzahl": intern_anzahl}
-    )
+    return templates.TemplateResponse(request, "kiosk/_presence.html", _room_context(db))
 
 
 @router.get("/kiosk/feedback-partial", response_class=HTMLResponse)
@@ -122,14 +165,43 @@ def _search_visitors(db: Session, q: str) -> list[Visitor]:
 
 
 @router.get("/kiosk/besucher", response_class=HTMLResponse)
-def besucher_suche_seite(request: Request) -> HTMLResponse:
-    return templates.TemplateResponse(request, "kiosk/besucher_suche.html", {})
+def besucher_suche_seite(request: Request, raum: str = "", db: Session = Depends(get_db)) -> HTMLResponse:
+    """Gibt es mehr als einen Technikraum (= mehr als ein Agent, siehe
+    app/models.py::Agent) und wurde noch keiner gewählt, zeigt die Seite zuerst eine
+    Raumauswahl (zwei große Touch-Buttons, siehe kiosk/besucher_suche.html); bei genau
+    einem Raum wird er automatisch übernommen, bei keinem läuft der Checkin wie bisher
+    ganz ohne Raumzuordnung."""
+    agenten = list(db.scalars(select(Agent).order_by(Agent.agent_id)))
+    gewaehlt = db.get(Agent, raum.strip()) if raum.strip() else None
+
+    if gewaehlt is None and len(agenten) > 1:
+        return templates.TemplateResponse(
+            request, "kiosk/besucher_suche.html", {"raum_wahl": True, "agenten": agenten}
+        )
+
+    if gewaehlt is None and len(agenten) == 1:
+        gewaehlt = agenten[0]
+
+    return templates.TemplateResponse(
+        request,
+        "kiosk/besucher_suche.html",
+        {
+            "raum_wahl": False,
+            "raum": gewaehlt.agent_id if gewaehlt else "",
+            "raum_bezeichnung": gewaehlt.bezeichnung if gewaehlt else None,
+            "mehrere_raeume": len(agenten) > 1,
+        },
+    )
 
 
 @router.get("/kiosk/besucher/suche-partial", response_class=HTMLResponse)
-def besucher_suche_partial(request: Request, q: str = "", db: Session = Depends(get_db)) -> HTMLResponse:
+def besucher_suche_partial(
+    request: Request, q: str = "", raum: str = "", db: Session = Depends(get_db)
+) -> HTMLResponse:
     treffer = _search_visitors(db, q) if q.strip() else []
-    return templates.TemplateResponse(request, "kiosk/_besucher_suche_ergebnisse.html", {"treffer": treffer, "q": q})
+    return templates.TemplateResponse(
+        request, "kiosk/_besucher_suche_ergebnisse.html", {"treffer": treffer, "q": q, "raum": raum}
+    )
 
 
 @router.post("/kiosk/besucher/anlegen")
@@ -138,6 +210,7 @@ def besucher_anlegen(
     nachname: str = Form(...),
     firma: str = Form(""),
     telefonnummer: str = Form(""),
+    raum: str = Form(""),
     db: Session = Depends(get_db),
 ) -> RedirectResponse:
     visitor = Visitor(
@@ -149,17 +222,19 @@ def besucher_anlegen(
     db.add(visitor)
     db.commit()
     db.refresh(visitor)
-    checkin_visitor(db, visitor_id=visitor.id)
+    checkin_visitor(db, visitor_id=visitor.id, raum=_resolve_raum(db, raum))
     return RedirectResponse(url="/", status_code=303)
 
 
 @router.post("/kiosk/besucher/einchecken")
-def besucher_einchecken(visitor_id: str = Form(...), db: Session = Depends(get_db)) -> RedirectResponse:
+def besucher_einchecken(
+    visitor_id: str = Form(...), raum: str = Form(""), db: Session = Depends(get_db)
+) -> RedirectResponse:
     visitor = db.get(Visitor, visitor_id)
     if visitor is None or visitor.geloescht_am is not None:
         raise HTTPException(status_code=404, detail="Besucherprofil nicht gefunden")
     try:
-        checkin_visitor(db, visitor_id=visitor.id)
+        checkin_visitor(db, visitor_id=visitor.id, raum=_resolve_raum(db, raum))
     except ValueError:
         pass  # bereits eingecheckt -> einfach zur Übersicht zurück
     return RedirectResponse(url="/", status_code=303)

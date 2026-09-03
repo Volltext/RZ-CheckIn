@@ -1,38 +1,79 @@
-<div class="intern-presence">
-  <h3>Mitarbeiter (intern)</h3>
+{% for room in rooms %}
+<section class="kiosk-room">
+  <h2>{{ room.agent.bezeichnung }}</h2>
+
   <div class="intern-count">
-    <span class="presence-dot {{ 'presence-dot-aktiv' if intern_anzahl else '' }}" aria-hidden="true"></span>
-    <strong>{{ intern_anzahl }}</strong> aktuell im Rechenzentrum
+    <span class="presence-dot {{ 'presence-dot-aktiv' if room.mitarbeiter_anzahl else '' }}" aria-hidden="true"></span>
+    <strong>{{ room.mitarbeiter_anzahl }}</strong> Mitarbeiter
   </div>
-  {% if intern_anzahl %}
+  {% if room.mitarbeiter_anzahl %}
   <div class="presence-dots" aria-hidden="true">
-    {% for _ in range(intern_anzahl) %}<span class="dot dot-gruen"></span>{% endfor %}
+    {% for _ in range(room.mitarbeiter_anzahl) %}<span class="dot dot-gruen"></span>{% endfor %}
   </div>
   {% endif %}
-  <p class="hinweis-klein">Aus Datenschutzgründen werden hier keine Namen angezeigt.</p>
-</div>
 
-<h3>Externe Besucher</h3>
-{% if extern %}
-<table>
-  <thead>
-    <tr><th>Name</th><th>Firma</th><th>Eingecheckt seit</th><th></th></tr>
-  </thead>
-  <tbody>
-    {% for p in extern %}
-    <tr>
-      <td>{{ p.name }}</td>
-      <td>{{ p.firma or "" }}</td>
-      <td>{{ p.checkin_zeit.strftime("%d.%m.%Y %H:%M") }}</td>
-      <td>
-        <form method="post" action="/kiosk/auschecken/visitor/{{ p.person_id }}" class="formular-inline">
-          <button type="submit" class="button button-warnung button-klein">Auschecken</button>
-        </form>
-      </td>
-    </tr>
-    {% endfor %}
-  </tbody>
-</table>
+  <h3>Externe Besucher</h3>
+  {% if room.extern %}
+  <table>
+    <thead>
+      <tr><th>Name</th><th>Firma</th><th>Eingecheckt seit</th><th></th></tr>
+    </thead>
+    <tbody>
+      {% for p in room.extern %}
+      <tr>
+        <td>{{ p.name }}</td>
+        <td>{{ p.firma or "" }}</td>
+        <td>{{ p.checkin_zeit.strftime("%d.%m.%Y %H:%M") }}</td>
+        <td>
+          <form method="post" action="/kiosk/auschecken/visitor/{{ p.person_id }}" class="formular-inline">
+            <button type="submit" class="button button-warnung button-klein">Auschecken</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p>Aktuell ist kein externer Besucher in diesem Raum eingecheckt.</p>
+  {% endif %}
+</section>
 {% else %}
-<p>Aktuell ist kein externer Besucher eingecheckt.</p>
+<p class="hinweis-klein kiosk-rooms-hinweis">
+  Noch keine Technikräume eingerichtet -- siehe Admin-Bereich unter „Agenten“ (ein Agent
+  pro Raum).
+</p>
+{% endfor %}
+
+{% if unzugeordnet_mitarbeiter_anzahl or unzugeordnet_extern %}
+<section class="kiosk-room">
+  <h2>Ohne Raumzuordnung</h2>
+  <div class="intern-count">
+    <span class="presence-dot {{ 'presence-dot-aktiv' if unzugeordnet_mitarbeiter_anzahl else '' }}" aria-hidden="true"></span>
+    <strong>{{ unzugeordnet_mitarbeiter_anzahl }}</strong> Mitarbeiter
+  </div>
+  {% if unzugeordnet_extern %}
+  <h3>Externe Besucher</h3>
+  <table>
+    <thead>
+      <tr><th>Name</th><th>Firma</th><th>Eingecheckt seit</th><th></th></tr>
+    </thead>
+    <tbody>
+      {% for p in unzugeordnet_extern %}
+      <tr>
+        <td>{{ p.name }}</td>
+        <td>{{ p.firma or "" }}</td>
+        <td>{{ p.checkin_zeit.strftime("%d.%m.%Y %H:%M") }}</td>
+        <td>
+          <form method="post" action="/kiosk/auschecken/visitor/{{ p.person_id }}" class="formular-inline">
+            <button type="submit" class="button button-warnung button-klein">Auschecken</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+</section>
 {% endif %}
+
+<p class="hinweis-klein kiosk-rooms-hinweis">Aus Datenschutzgründen werden für Mitarbeiter keine Namen angezeigt.</p>

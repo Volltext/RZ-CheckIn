@@ -111,6 +111,15 @@ def _rename_away_if_outdated(cursor) -> set[str]:
     return renamed
 
 
+def _add_missing_columns(cursor) -> None:
+    """Additive Schemaänderungen, für die kein Rename-away nötig ist (nullable Spalte,
+    keine geänderte CHECK-Constraint) -- SQLite kann `ALTER TABLE ... ADD COLUMN`, ein
+    einfaches idempotentes `ADD COLUMN falls fehlend` reicht hier aus."""
+    if _table_exists(cursor, "checklog") and "raum" not in _legacy_columns(cursor, "checklog"):
+        # Raumzuordnung für die Split-Ansicht je Technikraum (siehe app/models.py::CheckLog).
+        cursor.execute("ALTER TABLE checklog ADD COLUMN raum TEXT")
+
+
 def _migrate_renamed_tables(cursor, renamed: set[str]) -> None:
     if "employees" in renamed:
         cursor.execute(
@@ -153,6 +162,9 @@ def init_db() -> None:
         if renamed:
             _migrate_renamed_tables(cursor, renamed)
             raw_connection.commit()
+
+        _add_missing_columns(cursor)
+        raw_connection.commit()
 
         # Die Trigger-Bodies enthalten selbst Semikolons (BEGIN ... ; ... ; END;), daher
         # reicht ein einzelnes text()-execute() nicht (SQLite/DB-API führt pro Aufruf nur

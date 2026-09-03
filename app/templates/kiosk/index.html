@@ -5,23 +5,19 @@
   <h1>{{ site_title }}</h1>
 </header>
 
-<main class="kiosk-grid">
-  <section class="kiosk-col kiosk-col-presence">
-    <h2>Aktuell im Rechenzentrum</h2>
-    <div id="presence-list" data-poll-url="/kiosk/presence-partial" data-poll-interval="5000">
-      {% include "kiosk/_presence.html" %}
-    </div>
-  </section>
-  {# extern/intern_anzahl kommen aus app/routers/kiosk.py::kiosk_home bzw. presence_partial #}
+<main class="kiosk-main">
+  <div id="feedback-banner" data-poll-url="/kiosk/feedback-partial" data-poll-interval="2000">
+    {% include "kiosk/_feedback.html" %}
+  </div>
 
-  <section class="kiosk-col kiosk-col-scan">
-    <div id="feedback-banner" data-poll-url="/kiosk/feedback-partial" data-poll-interval="2000">
-      {% include "kiosk/_feedback.html" %}
-    </div>
-    <div class="kiosk-buttons">
-      <a class="button button-primary" href="/kiosk/besucher">Externer Besucher einchecken</a>
-    </div>
-  </section>
+  <div class="kiosk-buttons">
+    <a class="button button-primary" href="/kiosk/besucher">Externer Besucher einchecken</a>
+  </div>
+
+  {# Raumzuordnung kommt aus app/routers/kiosk.py::_room_context (rooms/unzugeordnet_*) #}
+  <div id="presence-list" class="kiosk-rooms" data-poll-url="/kiosk/presence-partial" data-poll-interval="5000">
+    {% include "kiosk/_presence.html" %}
+  </div>
 </main>
 
 <footer class="dsgvo-hinweis">

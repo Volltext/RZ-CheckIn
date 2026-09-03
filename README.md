@@ -42,23 +42,41 @@ Server (VM, intern)                      Kiosk-PC (Eingang RZ)
 
 ## Kiosk-Oberfläche
 
-Die Startseite (`/`) ist zweigeteilt:
+Die Startseite (`/`) zeigt oben den Scan-Status sowie den Button für externe Besucher,
+darunter eine Split-Ansicht mit einer Spalte je Technikraum:
 
-- **Links**: Live-Übersicht.
-  - *Mitarbeiter (intern)*: nur die Anzahl der aktuell Anwesenden, dargestellt als
-    grüner Punkt + Zähler (kein Name, keine Kartennummer — siehe Datensparsamkeit oben).
-    Ein manuelles Auschecken einzelner Mitarbeiter gibt es am Kiosk deshalb bewusst
-    nicht mehr; dafür gibt es das automatische Auschecken nach Zeitablauf sowie bei
-    Bedarf den Admin-Bereich (`/admin/mitarbeiter`).
-  - *Externe Besucher*: wie bisher eine Liste mit Name/Firma/Zeit und
-    "Auschecken"-Button pro Zeile (z. B. wenn jemand vergessen hat, sich abzumelden).
-- **Rechts**: Scan-Bereich. Im Ruhezustand zeigt er ein "Bereit zum Einlesen"-Icon; nach
-  einem Scan erscheint dort für ein paar Sekunden das Ergebnis (eingecheckt/ausgecheckt,
-  mit Ton) und darunter der Button für externe Besucher.
+- **Scan-Bereich**: im Ruhezustand nur ein kleines "Bereit zum Einlesen"-Icon (bewusst
+  minimal, der Platz gehört der Raum-Übersicht); nach einem Scan erscheint dort für ein
+  paar Sekunden das Ergebnis (eingecheckt/ausgecheckt, mit Ton).
+- **Ein Kärtchen pro Technikraum** (ein Eintrag pro angelegtem Reader-Agenten, siehe
+  "Mehrere Technikräume" unten):
+  - *Mitarbeiter (intern)*: nur die Anzahl der aktuell in diesem Raum Anwesenden,
+    dargestellt als grüner Punkt + Zähler (kein Name, keine Kartennummer — siehe
+    Datensparsamkeit oben). Ein manuelles Auschecken einzelner Mitarbeiter gibt es am
+    Kiosk deshalb bewusst nicht mehr; dafür gibt es das automatische Auschecken nach
+    Zeitablauf sowie bei Bedarf den Admin-Bereich (`/admin/mitarbeiter`).
+  - *Externe Besucher*: eine Liste mit Name/Firma/Zeit und "Auschecken"-Button pro Zeile
+    (z. B. wenn jemand vergessen hat, sich abzumelden).
+  - Personen ohne (mehr) gültige Raumzuordnung (z. B. Alteinträge von vor Einführung
+    dieser Funktion) landen in einem zusätzlichen Kärtchen "Ohne Raumzuordnung".
 - **Neue Dienstausweise**: hält jemand eine noch unbekannte Karte an den Reader, zeigt
   der Scan-Bereich statt einer Fehlermeldung einen Hinweis mit einem
   "Registrieren"-Button — ein Klick legt die Kartennummer an und checkt sofort ein, ganz
   ohne Umweg über den Admin-Bereich und **ohne Namenseingabe**.
+
+### Mehrere Technikräume über einen Server
+
+Ein Server kann mehrere Technikräume gleichzeitig loggen, wenn jeder Raum seinen
+eigenen Reader-Agenten hat (siehe `/admin/agenten`): die **Bezeichnung** des Agenten ist
+zugleich der Anzeigename des Raums in der Split-Ansicht oben, und jeder Scan dieses
+Agenten wird automatisch diesem Raum zugeordnet — eine eigene Raumverwaltung gibt es
+bewusst nicht, da ohnehin genau ein Agent pro Raum existiert.
+
+Externe Besucher haben keinen eigenen Reader; sie wählen den Raum stattdessen manuell
+beim Einchecken am Kiosk (`/kiosk/besucher`) über zwei große Touch-Buttons, bevor sie
+gesucht oder neu angelegt werden. Bei nur einem angelegten Agenten entfällt die Auswahl
+(der einzige Raum wird automatisch übernommen), bei keinem läuft der Checkin wie bisher
+ganz ohne Raumzuordnung.
 
 ## Projektstruktur
 
@@ -118,11 +136,15 @@ Jeder Test läuft gegen eine frische, temporäre SQLite-Datenbank (siehe
   DSGVO-Löschung entfernt die Zeile, das Log bleibt unangetastet (siehe unten).
 - `checklog` — append-only, `person_type` + `person_id` (kein FK, polymorpher Verweis),
   `action` (checkin/checkout), `source` (`rfid`/`manual`/`auto` — Letzteres fürs
-  automatische Auschecken). Der aktuelle "wer ist drin"-Status wird immer aus dem
-  letzten Eintrag pro Person **abgeleitet**, nie separat gepflegt
+  automatische Auschecken), `raum` (Technikraum des Eintrags, siehe "Mehrere
+  Technikräume" oben — ebenfalls kein FK, sondern eine lose Referenz auf
+  `agents.agent_id`; `NULL` = keine Raumzuordnung). Der aktuelle "wer ist drin"-Status
+  wird immer aus dem letzten Eintrag pro Person **abgeleitet**, nie separat gepflegt
   (`app/services/attendance.py::list_present`).
-- `agents` — ein Eintrag pro Kiosk-PC, API-Key-Hash + `last_seen` für die
-  PRTG-Überwachung.
+- `agents` — ein Eintrag pro Kiosk-PC bzw. Technikraum, API-Key-Hash + `last_seen` für
+  die PRTG-Überwachung. Da pro Raum genau ein Agent existiert, dient der Eintrag
+  zugleich als Raumzuordnung für die Split-Ansicht (siehe oben) — es gibt bewusst kein
+  eigenes Raum-Modell dafür.
 - `unknown_scans` — unbekannte UIDs, die am Reader gescannt wurden, zur späteren
   Zuordnung im Admin-Bereich.
 - `settings` — Key-Value-Ablage für zur Laufzeit im Admin-Bereich änderbare
@@ -146,8 +168,11 @@ Es gibt bewusst kein separates Migrationswerkzeug (Alembic o.ä.) — beim Start
 noch vorhandenen Namensfeldern aus einer Version vor dieser Datenschutz-Anpassung) und
 hebt es automatisch auf den aktuellen Stand: Namen werden dabei bewusst **nicht**
 übernommen (genau das ist die fachliche Vorgabe), alle anderen Daten (Kartennummern,
-Log-Einträge) bleiben vollständig erhalten. Vor einem Update auf eine Version mit
-Datenmodelländerungen trotzdem ein reguläres Backup ziehen (siehe Abschnitt "Backup").
+Log-Einträge) bleiben vollständig erhalten. Rein additive Änderungen (z. B. die
+nullable Spalte `checklog.raum` für die Technikraum-Zuordnung) zieht `init_db()`
+einfacher per `ALTER TABLE ... ADD COLUMN` nach, ohne dass dafür eine Tabelle umbenannt
+werden muss. Vor einem Update auf eine Version mit Datenmodelländerungen trotzdem ein
+reguläres Backup ziehen (siehe Abschnitt "Backup").
 
 ### Append-only-Schutz
 

@@ -23,18 +23,17 @@
     die Kartennummer gespeichert, kein Name.</p>
     <form method="post" action="/kiosk/mitarbeiter/registrieren" class="formular">
       <input type="hidden" name="rfid_uid" value="{{ event.uid }}">
+      <input type="hidden" name="raum" value="{{ event.agent_id or '' }}">
       <button type="submit" class="button button-erfolg" autofocus>Karte registrieren &amp; einchecken</button>
     </form>
   </div>
 {% else %}
-  <div class="feedback-idle">
-    <svg class="scan-icon" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+  <div class="feedback-idle" title="Bereit zum Einlesen">
+    <svg class="scan-icon" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Bereit zum Einlesen">
       <rect x="8" y="18" width="34" height="28" rx="4" stroke="currentColor" stroke-width="3"/>
       <line x1="8" y1="27" x2="42" y2="27" stroke="currentColor" stroke-width="3"/>
       <path d="M50 24c3 2.5 5 6 5 10s-2 7.5-5 10" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
       <path d="M56 18c5 4 8 9.5 8 16s-3 12-8 16" stroke="currentColor" stroke-width="3" stroke-linecap="round" opacity="0.6"/>
     </svg>
-    <p class="feedback-idle-titel">Bereit zum Einlesen</p>
-    <p class="hinweis-klein">Dienstausweis vorhalten zum Ein-/Auschecken.<br>Noch nicht registriert? Karte einfach vorhalten.</p>
   </div>
 {% endif %}

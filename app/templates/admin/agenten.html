@@ -4,14 +4,18 @@
 <p>Jeder Kiosk-PC benötigt einen eigenen Agenten-Eintrag mit API-Key
 (<code>X-Agent-Key</code>-Header) für <code>/api/checkin/rfid</code> und
 <code>/api/agent/heartbeat</code>.</p>
+<p>Gibt es mehrere Technikräume mit je einem eigenen Reader, dient der Agent zugleich als
+Raumzuordnung für die Split-Ansicht auf der Kiosk-Startseite: die <strong>Bezeichnung</strong>
+erscheint dort als Raumname, Scans dieses Agenten (und externe Besucher, die diesen Raum
+am Kiosk auswählen) werden entsprechend zugeordnet.</p>
 
 <div class="karte">
   <h2 style="margin-top:0;">Neuen Agenten anlegen</h2>
   <form class="formular" method="post" action="/admin/agenten/anlegen">
     <label for="agent_id">Agent-ID</label>
     <input id="agent_id" name="agent_id" placeholder="z. B. kiosk1" required>
-    <label for="bezeichnung">Bezeichnung</label>
-    <input id="bezeichnung" name="bezeichnung" placeholder="z. B. Eingang RZ" required>
+    <label for="bezeichnung">Bezeichnung (Raumname)</label>
+    <input id="bezeichnung" name="bezeichnung" placeholder="z. B. Technikraum 1" required>
     <button type="submit" class="button button-primary">Anlegen</button>
   </form>
 </div>

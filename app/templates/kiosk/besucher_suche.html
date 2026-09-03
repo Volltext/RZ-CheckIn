@@ -7,13 +7,28 @@
 </header>
 
 <main>
+{% if raum_wahl %}
+  <h2>In welchem Raum?</h2>
+  <div class="raum-wahl">
+    {% for a in agenten %}
+    <a class="button button-primary raum-wahl-button" href="/kiosk/besucher?raum={{ a.agent_id }}">{{ a.bezeichnung }}</a>
+    {% endfor %}
+  </div>
+{% else %}
+  {% if mehrere_raeume %}
+  <p class="raum-aktuell">
+    Raum: <strong>{{ raum_bezeichnung }}</strong>
+    <a class="button button-sekundaer button-klein" href="/kiosk/besucher">Anderer Raum</a>
+  </p>
+  {% endif %}
+
   <label for="suche">Vorhandenes Profil suchen (Name oder Telefonnummer)</label>
   <input
     id="suche"
     type="search"
     autocomplete="off"
     placeholder="z. B. Mustermann"
-    data-search-url="/kiosk/besucher/suche-partial"
+    data-search-url="/kiosk/besucher/suche-partial?raum={{ raum }}"
     data-swap-target="#suche-ergebnisse"
     style="width:100%; padding:0.8rem; font-size:1.1rem; margin:0.5rem 0 1.5rem;"
   >
@@ -23,6 +38,7 @@
 
   <h2>Neues Besucherprofil anlegen</h2>
   <form class="formular" method="post" action="/kiosk/besucher/anlegen">
+    <input type="hidden" name="raum" value="{{ raum }}">
     <label for="vorname">Vorname</label>
     <input id="vorname" name="vorname" required>
     <label for="nachname">Nachname</label>
@@ -33,6 +49,7 @@
     <input id="telefonnummer" name="telefonnummer">
     <button type="submit" class="button button-erfolg">Anlegen und einchecken</button>
   </form>
+{% endif %}
 </main>
 
 <footer class="dsgvo-hinweis">
