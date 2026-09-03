@@ -5,18 +5,22 @@
   <h1>{{ site_title }}</h1>
 </header>
 
-<main>
-  <div id="feedback-banner" data-poll-url="/kiosk/feedback-partial" data-poll-interval="2000"></div>
+<main class="kiosk-grid">
+  <section class="kiosk-col kiosk-col-presence">
+    <h2>Aktuell im Rechenzentrum</h2>
+    <div id="presence-list" data-poll-url="/kiosk/presence-partial" data-poll-interval="5000">
+      {% include "kiosk/_presence.html" %}
+    </div>
+  </section>
 
-  <div class="kiosk-buttons">
-    <a class="button button-erfolg" href="/kiosk/besucher">Externer Besucher einchecken</a>
-    <a class="button button-sekundaer" href="/kiosk/besucher/auschecken">Externer Besucher auschecken</a>
-  </div>
-
-  <h2>Aktuell im Rechenzentrum</h2>
-  <div id="presence-list" data-poll-url="/kiosk/presence-partial" data-poll-interval="5000">
-    {% include "kiosk/_presence.html" %}
-  </div>
+  <section class="kiosk-col kiosk-col-scan">
+    <div id="feedback-banner" data-poll-url="/kiosk/feedback-partial" data-poll-interval="2000">
+      {% include "kiosk/_feedback.html" %}
+    </div>
+    <div class="kiosk-buttons">
+      <a class="button button-primary" href="/kiosk/besucher">Externer Besucher einchecken</a>
+    </div>
+  </section>
 </main>
 
 <footer class="dsgvo-hinweis">

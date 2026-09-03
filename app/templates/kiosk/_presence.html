@@ -1,7 +1,7 @@
 {% if present %}
 <table>
   <thead>
-    <tr><th>Name</th><th>Firma</th><th>Eingecheckt seit</th></tr>
+    <tr><th>Name</th><th>Firma</th><th>Eingecheckt seit</th><th></th></tr>
   </thead>
   <tbody>
     {% for p in present %}
@@ -9,6 +9,11 @@
       <td>{{ p.name }}{% if p.person_type == "visitor" %} <small>(extern)</small>{% endif %}</td>
       <td>{{ p.firma or "" }}</td>
       <td>{{ p.checkin_zeit.strftime("%d.%m.%Y %H:%M") }}</td>
+      <td>
+        <form method="post" action="/kiosk/auschecken/{{ p.person_type }}/{{ p.person_id }}" class="formular-inline">
+          <button type="submit" class="button button-warnung button-klein">Auschecken</button>
+        </form>
+      </td>
     </tr>
     {% endfor %}
   </tbody>

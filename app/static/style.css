@@ -11,6 +11,32 @@
   --farbe-erfolg: #16a34a;
   --farbe-warnung: #dc2626;
   --farbe-rand: #cbd5e1;
+
+  /* Admin-Bereich: hell per Default, siehe prefers-color-scheme unten für Dark Mode. */
+  --admin-bg: #f1f5f9;
+  --admin-karte-bg: #ffffff;
+  --admin-text: #0f172a;
+  --admin-text-schwach: #475569;
+  --admin-rand: #cbd5e1;
+  --admin-input-bg: #ffffff;
+  --admin-nav-bg: #1e293b;
+  --admin-nav-text: #f8fafc;
+}
+
+/* Der Kiosk-Bildschirm bleibt bewusst immer dunkel (Wandmontage, Lesbarkeit aus der
+   Distanz) und folgt NICHT dem OS-Farbschema -- nur der Admin-Bereich bekommt Dark
+   Mode, da er in normalen Büro-Browsern läuft. */
+@media (prefers-color-scheme: dark) {
+  body:not(.kiosk) {
+    --admin-bg: #0b1220;
+    --admin-karte-bg: #1e293b;
+    --admin-text: #e2e8f0;
+    --admin-text-schwach: #94a3b8;
+    --admin-rand: #334155;
+    --admin-input-bg: #0f172a;
+    --admin-nav-bg: #0b1220;
+    --admin-nav-text: #e2e8f0;
+  }
 }
 
 * { box-sizing: border-box; }
@@ -18,8 +44,8 @@
 body {
   margin: 0;
   font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
-  color: var(--farbe-text);
-  background: #f1f5f9;
+  color: var(--admin-text);
+  background: var(--admin-bg);
 }
 
 body.kiosk {
@@ -50,10 +76,23 @@ main {
   width: 100%;
 }
 
+/* Kiosk-Startseite: links Übersicht/Auschecken, rechts Scan-Bereich/Externe. */
+main.kiosk-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+  gap: 2rem;
+  align-items: start;
+  max-width: 1300px;
+}
+@media (max-width: 900px) {
+  main.kiosk-grid { grid-template-columns: 1fr; }
+}
+.kiosk-col-scan { display: flex; flex-direction: column; gap: 1.5rem; }
+
 .kiosk-buttons {
   display: flex;
   gap: 1rem;
-  margin: 1.5rem 0;
+  margin: 0;
   flex-wrap: wrap;
 }
 
@@ -67,6 +106,7 @@ main {
   text-decoration: none;
   text-align: center;
 }
+.button-klein { padding: 0.4rem 0.8rem; font-size: 0.85rem; border-radius: 0.4rem; }
 
 .button-primary { background: var(--farbe-akzent); color: white; }
 .button-erfolg { background: var(--farbe-erfolg); color: white; }
@@ -75,24 +115,54 @@ main {
 
 table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
 th, td { text-align: left; padding: 0.6rem 0.8rem; border-bottom: 1px solid rgba(148, 163, 184, 0.3); }
-body:not(.kiosk) th, body:not(.kiosk) td { border-bottom: 1px solid var(--farbe-rand); }
+body:not(.kiosk) th, body:not(.kiosk) td { border-bottom: 1px solid var(--admin-rand); }
 
 #feedback-banner {
-  min-height: 3rem;
+  min-height: 11rem;
   display: flex;
   align-items: center;
+  justify-content: center;
 }
 
 .feedback {
-  padding: 0.9rem 1.2rem;
-  border-radius: 0.5rem;
+  padding: 1.2rem 1.4rem;
+  border-radius: 0.6rem;
   font-size: 1.2rem;
   width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
 }
+.feedback-icon { font-size: 2.2rem; line-height: 1; }
+.feedback-sub { font-size: 0.85rem; opacity: 0.85; font-weight: normal; }
 
 .feedback-checkin { background: rgba(22, 163, 74, 0.25); border: 1px solid var(--farbe-erfolg); }
 .feedback-checkout { background: rgba(37, 99, 235, 0.25); border: 1px solid var(--farbe-akzent); }
 .feedback-fehler { background: rgba(220, 38, 38, 0.25); border: 1px solid var(--farbe-warnung); }
+
+/* Idle-Zustand: "bereit zum Einlesen", solange kein aktuelles Scan-Ereignis vorliegt. */
+.feedback-idle {
+  width: 100%;
+  text-align: center;
+  padding: 2rem 1.5rem;
+  border: 1px dashed #475569;
+  border-radius: 0.75rem;
+  color: #cbd5e1;
+}
+.scan-icon { width: 56px; height: 56px; color: #60a5fa; margin-bottom: 0.75rem; }
+.feedback-idle-titel { font-size: 1.15rem; font-weight: 600; margin: 0 0 0.5rem; color: var(--farbe-text-hell); }
+.hinweis-klein { font-size: 0.8rem; color: #94a3b8; margin: 0; }
+
+/* Selbstregistrierung: unbekannte Karte -> Name eintragen. */
+.feedback-registrierung {
+  width: 100%;
+  background: rgba(37, 99, 235, 0.12);
+  border: 1px solid var(--farbe-akzent);
+  border-radius: 0.6rem;
+  padding: 1.2rem 1.4rem;
+}
+.feedback-registrierung p { margin: 0 0 0.8rem; }
+.feedback-registrierung .formular { max-width: none; }
 
 footer.dsgvo-hinweis {
   padding: 1rem 2rem;
@@ -105,30 +175,37 @@ footer.dsgvo-hinweis {
 .admin-layout { display: flex; min-height: 100vh; }
 .admin-nav {
   width: 220px;
-  background: var(--farbe-flaeche);
-  color: var(--farbe-text-hell);
+  background: var(--admin-nav-bg);
+  color: var(--admin-nav-text);
   padding: 1.5rem 1rem;
   flex-shrink: 0;
 }
-.admin-nav a { display: block; color: var(--farbe-text-hell); text-decoration: none; padding: 0.5rem 0.4rem; border-radius: 0.3rem; }
+.admin-nav a { display: block; color: var(--admin-nav-text); text-decoration: none; padding: 0.5rem 0.4rem; border-radius: 0.3rem; }
 .admin-nav a:hover { background: rgba(255,255,255,0.1); }
-.admin-content { flex: 1; padding: 2rem; max-width: 1000px; }
+.admin-content { flex: 1; padding: 2rem; max-width: 1000px; color: var(--admin-text); }
 
 .karte {
-  background: white;
-  border: 1px solid var(--farbe-rand);
+  background: var(--admin-karte-bg);
+  border: 1px solid var(--admin-rand);
   border-radius: 0.6rem;
   padding: 1.2rem 1.5rem;
   margin-bottom: 1.5rem;
+  color: var(--admin-text);
 }
 
 form.formular { display: flex; flex-direction: column; gap: 0.7rem; max-width: 420px; }
 form.formular label { font-size: 0.9rem; font-weight: 600; }
 form.formular input, form.formular select {
   padding: 0.5rem 0.6rem;
-  border: 1px solid var(--farbe-rand);
+  border: 1px solid var(--admin-rand);
   border-radius: 0.4rem;
   font-size: 1rem;
+  background: var(--admin-input-bg);
+  color: var(--admin-text);
+}
+body.kiosk form.formular input, body.kiosk form.formular select {
+  background: #f8fafc;
+  color: var(--farbe-text);
 }
 form.formular-inline { display: inline; }
 

@@ -8,12 +8,29 @@
 // Zustandsändernde Aktionen (Besucher anlegen/ein-/auschecken) laufen bewusst über
 // normale HTML-Formulare mit Server-Redirect, nicht über JS.
 
+function hatUngespeicherteEingabe(el) {
+  // Verhindert, dass ein Polling-Tick z.B. das Selbstregistrierungs-Formular
+  // überschreibt, während dort gerade der Name eingetippt wird. Wichtig: nicht nur auf
+  // Fokus prüfen -- das Vorname-Feld hat "autofocus" und wäre damit direkt nach dem
+  // Rendern fokussiert, obwohl noch niemand etwas eingegeben hat. Ohne die
+  // Wert-Prüfung würde ein liegen gelassenes/verwaistes Formular jeden weiteren
+  // Refresh blockieren, auch wenn längst eine neuere Karte gescannt wurde. Blockiert
+  // wird daher nur, wenn tatsächlich schon Text in einem fokussierten Feld steht.
+  const aktiv = document.activeElement;
+  if (!aktiv || !el.contains(aktiv)) return false;
+  if (!["INPUT", "SELECT", "TEXTAREA"].includes(aktiv.tagName)) return false;
+  return aktiv.value.trim() !== "";
+}
+
 function swapFragment(url, targetSelector) {
+  const vorher = document.querySelector(targetSelector);
+  if (vorher && hatUngespeicherteEingabe(vorher)) return;
+
   fetch(url)
     .then((r) => r.text())
     .then((html) => {
       const el = document.querySelector(targetSelector);
-      if (el) el.innerHTML = html;
+      if (el && !hatUngespeicherteEingabe(el)) el.innerHTML = html;
     })
     .catch(() => {
       /* Kiosk pollt weiter, ein einzelner fehlgeschlagener Request ist kein Problem */
