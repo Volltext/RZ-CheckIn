@@ -374,7 +374,9 @@ und regelmäßige, unveränderliche Backups.
   Jahre). Der tägliche Wartungsjob (`python -m app.cli purge`, siehe
   `deploy/rz-checkin-retention.timer`) löscht ältere Einträge hart und entfernt dabei
   verwaiste Besucherprofile (keine verbleibenden Log-Einträge mehr).
-- Hinweistext für Besucher: dauerhaft im Fußbereich der Kiosk-Startseite.
+- Hinweistext für Besucher: wird bewusst **nicht** auf dem Kiosk-Bildschirm angezeigt
+  (Platzgründe, siehe `deploy/KIOSK.md` Abschnitt 5) — muss anderweitig kommuniziert
+  werden (z. B. Aushang am Eingang, allgemeine Datenschutzerklärung).
 
 ## Deployment (Referenz & Produktivbetrieb)
 

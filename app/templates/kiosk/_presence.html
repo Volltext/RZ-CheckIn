@@ -14,25 +14,20 @@
 
   <h3>Externe Besucher</h3>
   {% if room.extern %}
-  <table>
-    <thead>
-      <tr><th>Name</th><th>Firma</th><th>Eingecheckt seit</th><th></th></tr>
-    </thead>
-    <tbody>
-      {% for p in room.extern %}
-      <tr>
-        <td>{{ p.name }}</td>
-        <td>{{ p.firma or "" }}</td>
-        <td>{{ p.checkin_zeit.strftime("%d.%m.%Y %H:%M") }}</td>
-        <td>
-          <form method="post" action="/kiosk/auschecken/visitor/{{ p.person_id }}" class="formular-inline">
-            <button type="submit" class="button button-warnung button-klein">Auschecken</button>
-          </form>
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+  <ul class="besucher-liste">
+    {% for p in room.extern %}
+    <li>
+      <span class="besucher-liste-info">
+        <span class="besucher-liste-name">{{ p.name }}</span>
+        {% if p.firma %}<span class="besucher-liste-firma">{{ p.firma }}</span>{% endif %}
+        <span class="besucher-liste-zeit">seit {{ p.checkin_zeit.strftime("%d.%m. %H:%M") }}</span>
+      </span>
+      <form method="post" action="/kiosk/auschecken/visitor/{{ p.person_id }}" class="formular-inline">
+        <button type="submit" class="button button-warnung button-klein">Auschecken</button>
+      </form>
+    </li>
+    {% endfor %}
+  </ul>
   {% else %}
   <p>Aktuell ist kein externer Besucher in diesem Raum eingecheckt.</p>
   {% endif %}
@@ -53,25 +48,20 @@
   </div>
   {% if unzugeordnet_extern %}
   <h3>Externe Besucher</h3>
-  <table>
-    <thead>
-      <tr><th>Name</th><th>Firma</th><th>Eingecheckt seit</th><th></th></tr>
-    </thead>
-    <tbody>
-      {% for p in unzugeordnet_extern %}
-      <tr>
-        <td>{{ p.name }}</td>
-        <td>{{ p.firma or "" }}</td>
-        <td>{{ p.checkin_zeit.strftime("%d.%m.%Y %H:%M") }}</td>
-        <td>
-          <form method="post" action="/kiosk/auschecken/visitor/{{ p.person_id }}" class="formular-inline">
-            <button type="submit" class="button button-warnung button-klein">Auschecken</button>
-          </form>
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+  <ul class="besucher-liste">
+    {% for p in unzugeordnet_extern %}
+    <li>
+      <span class="besucher-liste-info">
+        <span class="besucher-liste-name">{{ p.name }}</span>
+        {% if p.firma %}<span class="besucher-liste-firma">{{ p.firma }}</span>{% endif %}
+        <span class="besucher-liste-zeit">seit {{ p.checkin_zeit.strftime("%d.%m. %H:%M") }}</span>
+      </span>
+      <form method="post" action="/kiosk/auschecken/visitor/{{ p.person_id }}" class="formular-inline">
+        <button type="submit" class="button button-warnung button-klein">Auschecken</button>
+      </form>
+    </li>
+    {% endfor %}
+  </ul>
   {% endif %}
 </section>
 {% endif %}

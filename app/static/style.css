@@ -90,16 +90,66 @@ main {
   background: var(--farbe-flaeche);
   border-radius: 0.75rem;
   padding: 1.3rem 1.5rem;
+  /* Grid-Items schrumpfen sonst nicht unter die Breite ihres Inhalts (Standard
+     min-width:auto) -- ohne das hier würde eine lange Besucherliste die Karte über die
+     Breite ihrer Grid-Spalte hinaus aufdrücken, siehe .besucher-liste unten. */
+  min-width: 0;
 }
 .kiosk-room h2 { margin: 0 0 0.8rem; font-size: 1.3rem; }
 .kiosk-room h3 { margin: 1.2rem 0 0.4rem; font-size: 1rem; }
 
+/* Externe Besucher je Raum: bewusst eine umbrechende Liste statt einer Tabelle mit
+   festen Spalten -- eine Tabelle (Name/Firma/Zeit/Button nebeneinander) passt nicht in
+   eine schmale Raum-Karte und würde die Karte breiter als ihre Grid-Spalte machen. */
+.besucher-liste { list-style: none; margin: 1rem 0 0; padding: 0; display: flex; flex-direction: column; gap: 0.6rem; }
+.besucher-liste li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.75rem;
+  padding: 0.6rem 0.8rem;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 0.5rem;
+}
+.besucher-liste-info { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.3rem 0.6rem; min-width: 0; overflow-wrap: anywhere; }
+.besucher-liste-name { font-weight: 600; }
+.besucher-liste-firma { color: #94a3b8; font-size: 0.9rem; }
+.besucher-liste-zeit { color: #94a3b8; font-size: 0.8rem; white-space: nowrap; }
+
 .kiosk-buttons {
   display: flex;
+  justify-content: center;
   gap: 1rem;
-  margin: 0 0 1.5rem;
+  margin: 0 0 2rem;
   flex-wrap: wrap;
 }
+
+/* Haupt-Aktion auf der Kiosk-Startseite: auffälliger als ein normaler .button (Pille,
+   Farbverlauf, Icon, leichte Hover/Press-Animation) -- passend zu den Raum-Karten
+   (.raum-karte) auf der Besucher-Maske. */
+.button-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1.1rem 2.2rem;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+  color: white;
+  font-size: 1.15rem;
+  font-weight: 600;
+  text-decoration: none;
+  box-shadow: 0 0.6rem 1.5rem rgba(37, 99, 235, 0.35);
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+  touch-action: manipulation;
+}
+.button-cta:hover, .button-cta:focus-visible {
+  transform: translateY(-2px);
+  box-shadow: 0 0.9rem 2rem rgba(37, 99, 235, 0.45);
+}
+.button-cta:active { transform: scale(0.97); }
+.button-cta-icon { display: flex; }
+.button-cta-icon svg { width: 1.4rem; height: 1.4rem; }
 
 .button {
   display: inline-block;
@@ -190,13 +240,6 @@ body:not(.kiosk) th, body:not(.kiosk) td { border-bottom: 1px solid var(--admin-
 .presence-dots { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.7rem; }
 .dot { width: 0.6rem; height: 0.6rem; border-radius: 50%; }
 .dot-gruen { background: var(--farbe-erfolg); box-shadow: 0 0 0.35rem rgba(22, 163, 74, 0.6); }
-
-footer.dsgvo-hinweis {
-  padding: 1rem 2rem;
-  font-size: 0.8rem;
-  color: #94a3b8;
-  border-top: 1px solid #334155;
-}
 
 /* Externer-Besucher-Maske: als eigener, schmalerer Block zentriert statt (wie der Rest
    von <main>) linksbündig über die volle Breite -- wirkt sonst bei viel Platz auf dem
