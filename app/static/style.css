@@ -103,9 +103,23 @@ main {
   width: 100%;
 }
 
-/* Kiosk-Startseite: Scan-Feedback + Besucher-Button oben, darunter die Split-Ansicht
-   (ein Kärtchen pro Technikraum = pro Agent, siehe app/routers/kiosk.py::_room_context). */
+/* Kiosk-Startseite: eine schmale Kopfzeile (Scan-Status + Besucher-Button, siehe
+   .kiosk-topbar) und darunter die Split-Ansicht -- die Raum-Übersicht ist der
+   eigentliche Inhalt der Seite und bekommt deshalb den verbleibenden Platz (flex:1). */
+main.kiosk-main { display: flex; flex-direction: column; }
+
+.kiosk-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.5rem;
+}
+
+/* Ein Kärtchen pro Technikraum = pro Agent, siehe app/routers/kiosk.py::_room_context. */
 .kiosk-rooms {
+  flex: 1;
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   gap: 1.5rem;
@@ -116,16 +130,16 @@ main {
 .kiosk-room {
   background: var(--farbe-flaeche);
   border-radius: var(--radius-md);
-  padding: 1.3rem 1.5rem;
+  padding: 1.6rem 1.75rem;
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
   /* Grid-Items schrumpfen sonst nicht unter die Breite ihres Inhalts (Standard
      min-width:auto) -- ohne das hier würde eine lange Besucherliste die Karte über die
      Breite ihrer Grid-Spalte hinaus aufdrücken, siehe .besucher-liste unten. */
   min-width: 0;
 }
-.kiosk-room h2 { margin: 0 0 0.8rem; font-size: 1.1rem; }
+.kiosk-room h2 { margin: 0 0 1rem; font-size: 1.15rem; }
 .kiosk-room h3 {
-  margin: 1.2rem 0 0.5rem;
+  margin: 1.5rem 0 0.6rem;
   font-size: 0.75rem;
   font-weight: 600;
   text-transform: uppercase;
@@ -156,59 +170,65 @@ main {
   display: flex;
   justify-content: center;
   gap: 1rem;
-  margin: 0 0 2rem;
   flex-wrap: wrap;
 }
 
-/* Haupt-Aktion auf der Kiosk-Startseite: auffälliger als ein normaler .button (Pille,
-   Farbverlauf, Icon, leichte Hover/Press-Animation) -- passend zu den Raum-Karten
-   (.raum-karte) auf der Besucher-Maske. */
-.button-cta {
+/* EIN Button-Grundbaustein für die ganze Anwendung (Kiosk + Admin): Pille, dezenter
+   Schatten, leichtes Hover-/Press-Feedback. Farbe kommt von den .button-*-Modifiern
+   unten, Größe von .button (Standard) / .button-klein. Die eine Haupt-Aktion je
+   Kiosk-Bildschirm (Besucher einchecken, Anlegen & einchecken bestätigen) sticht
+   zusätzlich per Farbverlauf + Icon hervor (.button-cta), bleibt dabei aber in Form,
+   Schatten und Bewegung dieselbe Familie -- siehe auch .raum-karte weiter unten, die
+   denselben Farbverlauf/Icon-Kreis/Hover-Look für die große Raumauswahl nutzt. */
+.button {
   display: inline-flex;
   align-items: center;
-  gap: 0.75rem;
-  padding: 1.1rem 2.2rem;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.9rem 1.6rem;
   border-radius: 999px;
+  border: none;
+  font-size: 1.1rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+  text-align: center;
+  touch-action: manipulation;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  transition: filter 0.12s ease, transform 0.08s ease, box-shadow 0.12s ease;
+}
+.button:hover { filter: brightness(1.08); transform: translateY(-1px); box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18); }
+.button:active { transform: scale(0.97) translateY(0); }
+body.kiosk .button, body.kiosk button { min-height: 3.2rem; }
+.button-klein { padding: 0.4rem 0.9rem; font-size: 0.85rem; min-height: 0 !important; }
+
+.button-primary { background: var(--farbe-akzent); color: white; }
+.button-erfolg { background: var(--farbe-erfolg); color: white; }
+.button-warnung { background: var(--farbe-warnung); color: white; }
+.button-sekundaer { background: var(--farbe-flaeche); color: var(--farbe-text-hell); border: 1px solid #475569; box-shadow: none; }
+body:not(.kiosk) .button-sekundaer { background: var(--admin-karte-bg); color: var(--admin-text); border: 1px solid var(--admin-rand); }
+
+/* Haupt-Aktion je Kiosk-Bildschirm: derselbe Button-Baustein wie .button, nur größer
+   und mit Farbverlauf + Icon statt flacher Farbe -- passend zu den Raum-Karten
+   (.raum-karte) auf der Besucher-Maske. */
+.button-cta {
+  padding: 1.1rem 2.2rem;
+  gap: 0.75rem;
   background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
   color: white;
   font-size: 1.15rem;
-  font-weight: 600;
-  text-decoration: none;
   box-shadow: 0 0.6rem 1.5rem rgba(37, 99, 235, 0.35);
-  transition: transform 0.12s ease, box-shadow 0.12s ease;
-  touch-action: manipulation;
 }
 .button-cta:hover, .button-cta:focus-visible {
   transform: translateY(-2px);
   box-shadow: 0 0.9rem 2rem rgba(37, 99, 235, 0.45);
 }
-.button-cta:active { transform: scale(0.97); }
+.button-cta-erfolg { background: linear-gradient(135deg, #22c55e 0%, #15803d 100%); box-shadow: 0 0.6rem 1.5rem rgba(22, 163, 74, 0.35); }
+.button-cta-erfolg:hover, .button-cta-erfolg:focus-visible { box-shadow: 0 0.9rem 2rem rgba(22, 163, 74, 0.45); }
+.button-cta-klein { padding: 0.75rem 1.5rem; font-size: 1rem; }
 .button-cta-icon { display: flex; }
 .button-cta-icon svg { width: 1.4rem; height: 1.4rem; }
-
-.button {
-  display: inline-block;
-  padding: 0.9rem 1.6rem;
-  border-radius: var(--radius-sm);
-  border: none;
-  font-size: 1.1rem;
-  cursor: pointer;
-  text-decoration: none;
-  text-align: center;
-  touch-action: manipulation;
-  transition: filter 0.12s ease, transform 0.08s ease, box-shadow 0.12s ease;
-}
-.button:hover { filter: brightness(1.08); }
-.button:active { transform: scale(0.97); }
-body.kiosk .button, body.kiosk button { min-height: 3.2rem; }
-.button-klein { padding: 0.4rem 0.8rem; font-size: 0.85rem; border-radius: 0.4rem; }
-body.kiosk .button.button-klein { min-height: 0; }
-
-.button-primary { background: var(--farbe-akzent); color: white; }
-.button-erfolg { background: var(--farbe-erfolg); color: white; }
-.button-warnung { background: var(--farbe-warnung); color: white; }
-.button-sekundaer { background: var(--farbe-flaeche); color: var(--farbe-text-hell); border: 1px solid #475569; }
-body:not(.kiosk) .button-sekundaer { background: var(--admin-karte-bg); color: var(--admin-text); border: 1px solid var(--admin-rand); }
+.button-cta-klein .button-cta-icon svg { width: 1.2rem; height: 1.2rem; }
 
 table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
 th, td { text-align: left; padding: 0.6rem 0.8rem; border-bottom: 1px solid rgba(148, 163, 184, 0.3); }
@@ -268,12 +288,12 @@ body:not(.kiosk) tbody tr:hover { background: rgba(37, 99, 235, 0.05); }
 .intern-count {
   display: flex;
   align-items: center;
-  gap: 0.6rem;
-  font-size: 1.15rem;
+  gap: 0.7rem;
+  font-size: 1.3rem;
 }
 .presence-dot {
-  width: 0.85rem;
-  height: 0.85rem;
+  width: 1rem;
+  height: 1rem;
   border-radius: 50%;
   background: #475569;
   flex-shrink: 0;

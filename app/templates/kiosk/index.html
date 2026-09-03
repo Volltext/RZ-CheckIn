@@ -6,22 +6,27 @@
 </header>
 
 <main class="kiosk-main">
-  <div id="feedback-banner" data-poll-url="/kiosk/feedback-partial" data-poll-interval="2000">
-    {% include "kiosk/_feedback.html" %}
-  </div>
+  {# Scan-Status + Besucher-Button teilen sich eine schmale Kopfzeile statt je einer
+     eigenen Zeile -- der Platz gehört der Raum-Übersicht darunter (siehe .kiosk-rooms,
+     bekommt flex:1 und wächst in den verbleibenden Platz). #}
+  <div class="kiosk-topbar">
+    <div id="feedback-banner" data-poll-url="/kiosk/feedback-partial" data-poll-interval="2000">
+      {% include "kiosk/_feedback.html" %}
+    </div>
 
-  <div class="kiosk-buttons">
-    <a class="button-cta" href="/kiosk/besucher">
-      <span class="button-cta-icon" aria-hidden="true">
-        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M15 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-          <circle cx="8.5" cy="7" r="3.5" stroke="currentColor" stroke-width="2"/>
-          <line x1="19" y1="8" x2="19" y2="14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-          <line x1="16" y1="11" x2="22" y2="11" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-        </svg>
-      </span>
-      Externer Besucher einchecken
-    </a>
+    <div class="kiosk-buttons">
+      <a class="button button-cta" href="/kiosk/besucher">
+        <span class="button-cta-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M15 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <circle cx="8.5" cy="7" r="3.5" stroke="currentColor" stroke-width="2"/>
+            <line x1="19" y1="8" x2="19" y2="14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <line x1="16" y1="11" x2="22" y2="11" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </span>
+        Externer Besucher einchecken
+      </a>
+    </div>
   </div>
 
   {# Raumzuordnung kommt aus app/routers/kiosk.py::_room_context (rooms/unzugeordnet_*) #}
