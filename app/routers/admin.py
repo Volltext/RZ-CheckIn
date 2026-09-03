@@ -326,6 +326,12 @@ def _log_eintraege(db: Session, von_dt: datetime | None, bis_dt: datetime | None
     # Dienstausweisnummer (die einzige gespeicherte Kennung, siehe app/models.py::Employee).
     employees = {e.id: (e.rfid_uid or "(ohne Kartennummer)") for e in db.scalars(select(Employee))}
     visitors = {v.id: (v.voller_name, v.firma) for v in db.scalars(select(Visitor))}
+    # Raum kommt (wie bei Mitarbeitern/Besuchern) nur als Anzeige-Auflösung dazu -- der
+    # Log-Eintrag selbst speichert nur die Agent-ID (siehe app/models.py::CheckLog.raum),
+    # kein FK. Wird ein Agent später gelöscht/umbenannt, bleibt der Log-Eintrag
+    # unverändert; hier wird dafür nur ein Platzhalter angezeigt (append-only, siehe
+    # app/db.py -- Löschen eines Agenten/Besuchers ändert am Log nie etwas).
+    agenten = {a.agent_id: a.bezeichnung for a in db.scalars(select(Agent))}
 
     eintraege = []
     for entry in db.scalars(query):
@@ -334,7 +340,11 @@ def _log_eintraege(db: Session, von_dt: datetime | None, bis_dt: datetime | None
             firma = None
         else:
             name, firma = visitors.get(entry.person_id, ("(gelöschtes Profil)", None))
-        eintraege.append({"entry": entry, "name": name, "firma": firma})
+        if entry.raum is None:
+            raum = None
+        else:
+            raum = agenten.get(entry.raum, "(gelöschter Raum)")
+        eintraege.append({"entry": entry, "name": name, "firma": firma, "raum": raum})
     return eintraege
 
 
