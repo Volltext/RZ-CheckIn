@@ -30,7 +30,9 @@ def checkin_rfid(
     agent: Agent = Depends(require_agent),
 ) -> RfidScanResponse:
     outcome = record_rfid_scan(db, uid=payload.uid, timestamp=payload.timestamp)
-    push_event(outcome.result, outcome.name)
+    # UID nur bei unbekannter Karte mitschicken -- der Kiosk braucht sie für die
+    # Selbstregistrierung (siehe app/routers/kiosk.py), sonst ist sie fürs UI irrelevant.
+    push_event(outcome.result, outcome.name, uid=payload.uid if outcome.result == "unknown_card" else None)
     return RfidScanResponse(
         result=outcome.result,
         name=outcome.name,
