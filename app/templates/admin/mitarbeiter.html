@@ -8,7 +8,7 @@
 </p>
 
 <div class="karte">
-  <h2 style="margin-top:0;">Neuen Dienstausweis anlegen</h2>
+  <h2>Neuen Dienstausweis anlegen</h2>
   <form class="formular" method="post" action="/admin/mitarbeiter/anlegen">
     <label for="rfid_uid">Dienstausweisnummer (Karten-UID)</label>
     <input id="rfid_uid" name="rfid_uid" placeholder="UID (Hex)" required>
@@ -18,7 +18,7 @@
 
 {% if unbekannte_karten %}
 <div class="karte">
-  <h2 style="margin-top:0;">Unbekannte Karten am Reader</h2>
+  <h2>Unbekannte Karten am Reader</h2>
   <p>Diese UIDs wurden gescannt, sind aber keinem Eintrag zugeordnet.</p>
   <table>
     <thead><tr><th>UID</th><th>Zuletzt gesehen</th><th>Anzahl</th><th>Aktion</th></tr></thead>
@@ -52,7 +52,7 @@
 {% endif %}
 
 <div class="karte">
-  <h2 style="margin-top:0;">Alle Dienstausweise</h2>
+  <h2>Alle Dienstausweise</h2>
   <table>
     <thead>
       <tr><th>Dienstausweisnummer</th><th>Status</th><th>Anwesenheit</th><th>Angelegt am</th><th>Aktionen</th></tr>
