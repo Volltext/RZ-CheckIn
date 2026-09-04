@@ -56,11 +56,12 @@ def test_deleting_agent_does_not_touch_existing_log_entries(client, db):
     assert "(gelöschter Raum)" in after.text
 
 
-def test_deleting_visitor_keeps_log_entries_with_placeholder(client, db):
-    """DSGVO-Löschung eines Besucherprofils entfernt nur die visitors-Zeile -- die
-    Log-Einträge (Check-in/Check-out) bleiben vollständig erhalten, siehe
-    app/services/visitors.py::delete_visitor. Die Log-Ansicht zeigt dafür statt des
-    Namens einen Platzhalter, das Protokoll selbst bleibt unangetastet."""
+def test_deleting_visitor_keeps_log_entries_with_name(client, db):
+    """Entfernt der Admin ein Besucherprofil aus der Kontaktliste, bleibt die
+    visitors-Zeile als Soft-Delete bestehen (siehe app/services/visitors.py::
+    delete_visitor) -- die Log-Ansicht zeigt den Namen deshalb weiterhin an, statt eines
+    Platzhalters. Der Platzhalter "(gelöschtes Profil)" erscheint erst nach der
+    endgültigen DSGVO-Löschung durch die Aufbewahrungsfrist (app/services/retention.py)."""
     _login(client, db)
     visitor = make_visitor(db, vorname="Erika", nachname="Testfrau")
     checkin_visitor(db, visitor_id=visitor.id)
@@ -70,6 +71,18 @@ def test_deleting_visitor_keeps_log_entries_with_placeholder(client, db):
 
     response = client.get("/admin/log")
     assert response.status_code == 200
-    assert "Erika Testfrau" not in response.text
-    assert "(gelöschtes Profil)" in response.text
+    assert "Erika Testfrau" in response.text
+    assert "(gelöschtes Profil)" not in response.text
     assert response.text.count("Check-in") + response.text.count("Check-out") >= 1
+
+
+def test_deleted_visitor_no_longer_shown_in_active_besucherliste(client, db):
+    """Das Entfernen blendet das Profil trotzdem aus der aktiven Kontaktliste aus --
+    Soft-Delete heißt nicht, dass die Person weiter als aktiver Besucher auftaucht."""
+    _login(client, db)
+    visitor = make_visitor(db, vorname="Erika", nachname="Testfrau")
+    delete_visitor(db, visitor.id)
+
+    response = client.get("/admin/besucher")
+    assert response.status_code == 200
+    assert "Erika" not in response.text

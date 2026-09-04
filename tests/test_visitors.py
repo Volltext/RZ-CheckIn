@@ -74,7 +74,7 @@ def test_visitor_create_via_kiosk_checks_in(client):
 
 
 def test_delete_visitor_removes_profile_but_keeps_log(db):
-    visitor = make_visitor(db, vorname="Wird", nachname="Geloescht")
+    visitor = make_visitor(db, vorname="Wird", nachname="Entfernt")
     checkin_visitor(db, visitor_id=visitor.id)
     checkout_person(db, person_type="visitor", person_id=visitor.id)
 
@@ -85,11 +85,16 @@ def test_delete_visitor_removes_profile_but_keeps_log(db):
 
     delete_visitor(db, visitor.id)
 
-    assert db.get(Visitor, visitor.id) is None
+    # Soft-Delete: die visitors-Zeile bleibt bestehen (nur geloescht_am gesetzt), damit
+    # das Log den Namen weiterhin auflösen kann -- siehe app/services/visitors.py.
+    reloaded = db.get(Visitor, visitor.id)
+    assert reloaded is not None
+    assert reloaded.geloescht_am is not None
+
     remaining_entries = list(
         db.scalars(select(CheckLog).where(CheckLog.person_type == "visitor", CheckLog.person_id == visitor.id))
     )
-    # Das Log bleibt unangetastet -- die Einträge existieren weiterhin, nur das Profil ist weg.
+    # Das Log bleibt unangetastet -- die Einträge existieren weiterhin.
     assert len(remaining_entries) == 2
 
 

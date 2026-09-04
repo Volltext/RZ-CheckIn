@@ -30,8 +30,8 @@
             </form>
           </details>
           <form method="post" action="/admin/besucher/{{ v.id }}/loeschen" class="formular-inline"
-                onsubmit="return confirm('Profil von {{ v.vorname }} {{ v.nachname }} wirklich unwiderruflich löschen?');">
-            <button type="submit" class="button button-warnung">Löschen (DSGVO)</button>
+                onsubmit="return confirm('Profil von {{ v.vorname }} {{ v.nachname }} aus der Besucherliste entfernen? Bestehende Log-Einträge bleiben mit Namen erhalten.');">
+            <button type="submit" class="button button-warnung">Entfernen</button>
           </form>
         </td>
       </tr>
