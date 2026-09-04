@@ -12,6 +12,7 @@ from app.config import get_settings
 from app.models import CheckLog, Visitor
 from app.services.attendance import checkin_visitor, checkout_person, record_rfid_scan
 from app.services.retention import purge
+from app.services.settings import set_retention_days
 from tests.factories import make_employee, make_visitor
 
 
@@ -89,3 +90,18 @@ def test_purge_keeps_visitor_with_recent_entries(db):
     result = purge(db)
     assert result.visitors_removed == 0
     assert db.get(Visitor, visitor.id) is not None
+
+
+def test_purge_uses_admin_configured_retention_days(db):
+    """Die im Admin-Bereich eingestellte Frist (app/services/settings.py) hat Vorrang vor
+    dem Startwert aus app/config.py."""
+    make_employee(db, rfid_uid="AABBCCDD")
+    ten_days_ago = datetime.now(timezone.utc) - timedelta(days=10)
+    record_rfid_scan(db, uid="AABBCCDD", timestamp=ten_days_ago)
+
+    result = purge(db)
+    assert result.checklog_entries_removed == 0  # Standardfrist (730 Tage) greift noch nicht
+
+    set_retention_days(db, 5)
+    result = purge(db)
+    assert result.checklog_entries_removed == 1

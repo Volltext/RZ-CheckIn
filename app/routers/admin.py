@@ -32,8 +32,10 @@ from app.services.export import export_checklog_csv
 from app.services.settings import (
     get_auto_checkout_hours,
     get_besucher_suche_aktiv,
+    get_retention_days,
     set_auto_checkout_hours,
     set_besucher_suche_aktiv,
+    set_retention_days,
 )
 from app.services.agents import delete_agent
 from app.services.visitors import VisitorCurrentlyPresentError, delete_visitor
@@ -463,6 +465,7 @@ def einstellungen_form(
             "admin": admin,
             "auto_checkout_stunden": get_auto_checkout_hours(db),
             "besucher_suche_aktiv": get_besucher_suche_aktiv(db),
+            "aufbewahrung_tage": get_retention_days(db),
             "erfolg": False,
         },
     )
@@ -487,6 +490,7 @@ def einstellungen_speichern(
                 "admin": admin,
                 "auto_checkout_stunden": get_auto_checkout_hours(db),
                 "besucher_suche_aktiv": get_besucher_suche_aktiv(db),
+                "aufbewahrung_tage": get_retention_days(db),
                 "fehler": fehler,
                 "erfolg": False,
             },
@@ -501,6 +505,7 @@ def einstellungen_speichern(
             "admin": admin,
             "auto_checkout_stunden": auto_checkout_stunden,
             "besucher_suche_aktiv": get_besucher_suche_aktiv(db),
+            "aufbewahrung_tage": get_retention_days(db),
             "erfolg": True,
         },
     )
@@ -523,6 +528,47 @@ def einstellungen_besucher_suche_speichern(
             "admin": admin,
             "auto_checkout_stunden": get_auto_checkout_hours(db),
             "besucher_suche_aktiv": aktiv,
+            "aufbewahrung_tage": get_retention_days(db),
+            "erfolg": True,
+        },
+    )
+
+
+@router.post("/einstellungen/aufbewahrung", response_class=HTMLResponse)
+def einstellungen_aufbewahrung_speichern(
+    request: Request,
+    aufbewahrung_tage: int = Form(...),
+    db: Session = Depends(get_db),
+    admin: AdminUser = Depends(get_current_admin),
+) -> HTMLResponse:
+    fehler = None
+    if aufbewahrung_tage < 1:
+        fehler = "Bitte eine positive Anzahl Tage angeben."
+
+    if fehler:
+        return templates.TemplateResponse(
+            request,
+            "admin/einstellungen.html",
+            {
+                "admin": admin,
+                "auto_checkout_stunden": get_auto_checkout_hours(db),
+                "besucher_suche_aktiv": get_besucher_suche_aktiv(db),
+                "aufbewahrung_tage": get_retention_days(db),
+                "fehler": fehler,
+                "erfolg": False,
+            },
+            status_code=400,
+        )
+
+    set_retention_days(db, aufbewahrung_tage)
+    return templates.TemplateResponse(
+        request,
+        "admin/einstellungen.html",
+        {
+            "admin": admin,
+            "auto_checkout_stunden": get_auto_checkout_hours(db),
+            "besucher_suche_aktiv": get_besucher_suche_aktiv(db),
+            "aufbewahrung_tage": aufbewahrung_tage,
             "erfolg": True,
         },
     )

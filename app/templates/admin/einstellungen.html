@@ -28,6 +28,28 @@
 </div>
 
 <div class="karte">
+  <h2>Aufbewahrungsfrist der Logs</h2>
+  <p>
+    Log-Einträge, die älter als die hier eingestellte Anzahl Tage sind, werden beim
+    nächsten Lauf des Wartungsjobs endgültig gelöscht (hart, nicht rückholbar). Besucherprofile,
+    zu denen danach kein Log-Eintrag mehr existiert, werden ebenfalls entfernt.
+  </p>
+  <form class="formular" method="post" action="/admin/einstellungen/aufbewahrung">
+    <label for="aufbewahrung_tage">Log-Einträge aufbewahren für (Tage)</label>
+    <input
+      id="aufbewahrung_tage"
+      name="aufbewahrung_tage"
+      type="number"
+      min="1"
+      step="1"
+      value="{{ aufbewahrung_tage }}"
+      required
+    >
+    <button type="submit" class="button button-primary">Speichern</button>
+  </form>
+</div>
+
+<div class="karte">
   <h2>Besuchersuche am Kiosk</h2>
   <p>
     Steuert, ob externe Besucher am Kiosk (<code>/kiosk/besucher</code>) zuerst nach
