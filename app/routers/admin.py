@@ -1,6 +1,7 @@
 """Verwaltungsbereich: Login-geschützt, separat vom Kiosk (Konzept 3.4).
 
-Mitarbeiterkarten registrieren/zuordnen, Besucherprofile verwalten (inkl. DSGVO-Löschung),
+Mitarbeiterkarten registrieren/zuordnen, Besucherprofile verwalten (inkl. Entfernen aus
+der aktiven Kontaktliste per Soft-Delete, siehe app/services/visitors.py),
 Log rein lesend einsehen + CSV-Export, Agenten verwalten, eigenes Passwort ändern.
 """
 

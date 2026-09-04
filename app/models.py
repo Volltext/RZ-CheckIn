@@ -95,10 +95,15 @@ class CheckLog(Base):
     # Alteinträge vor Einführung dieser Funktion).
     raum: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
-    # Bewusst KEIN Namens-Snapshot hier: das Log ist append-only und wird beim Löschen
-    # eines Besucherprofils (DSGVO) nicht angefasst ("Log bleibt unangetastet"). Ist die
-    # Person zu person_id nicht mehr auffindbar, zeigen Anzeige/Export stattdessen einen
-    # generischen Platzhalter ("gelöschtes Profil") — siehe app/services/export.py.
+    # Bewusst KEIN Namens-Snapshot hier: das Log ist append-only und wird beim Entfernen
+    # eines Besucherprofils aus der Kontaktliste nicht angefasst ("Log bleibt
+    # unangetastet"). Das Entfernen ist ein Soft-Delete (Visitor.geloescht_am, siehe
+    # app/services/visitors.py::delete_visitor), die visitors-Zeile bleibt also bestehen
+    # und Anzeige/Export lösen den Namen weiterhin ganz normal auf. Nur nach der
+    # endgültigen DSGVO-Löschung durch die Aufbewahrungsfrist (app/services/retention.py)
+    # ist die Person zu person_id wirklich nicht mehr auffindbar; Anzeige/Export zeigen
+    # dann stattdessen einen generischen Platzhalter ("gelöschtes Profil") — siehe
+    # app/services/export.py.
 
 
 class Agent(Base):
