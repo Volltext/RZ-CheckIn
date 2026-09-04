@@ -10,7 +10,7 @@ import sqlite3
 from sqlalchemy import select
 
 from app.db import engine, init_db
-from app.models import CheckLog, Employee
+from app.models import Agent, CheckLog, Employee
 
 
 def _raw_connection() -> sqlite3.Connection:
@@ -135,4 +135,44 @@ def test_legacy_checklog_without_raum_column_gets_it_added_nullable():
 
     # Ein zweiter init_db()-Lauf (z. B. Container-Neustart) darf nicht an einer bereits
     # vorhandenen Spalte scheitern (idempotent).
+    init_db()
+
+
+def test_legacy_agents_table_without_geloescht_am_column_gets_it_added_nullable():
+    """Bestehende Installationen vor Einführung des Soft-Deletes für Agenten (siehe
+    app/models.py::Agent.geloescht_am) haben noch kein `geloescht_am`-Feld -- init_db()
+    muss die Spalte additiv per ALTER TABLE nachziehen, ohne bestehende Zeilen (samt
+    api_key_hash) zu verlieren."""
+    con = _raw_connection()
+    try:
+        con.execute("DELETE FROM agents")
+        con.execute("DROP TABLE agents")
+        con.execute(
+            """
+            CREATE TABLE agents (
+                agent_id VARCHAR(64) PRIMARY KEY,
+                bezeichnung VARCHAR(200) NOT NULL,
+                api_key_hash VARCHAR(200) NOT NULL,
+                erstellt_am DATETIME,
+                last_seen DATETIME
+            )
+            """
+        )
+        con.execute(
+            "INSERT INTO agents (agent_id, bezeichnung, api_key_hash, erstellt_am, last_seen) "
+            "VALUES ('kiosk1', 'Serverraum A', 'hash', '2024-01-01 00:00:00+00:00', NULL)"
+        )
+        con.commit()
+    finally:
+        con.close()
+
+    init_db()
+
+    with engine.connect() as conn:
+        row = conn.execute(select(Agent).where(Agent.agent_id == "kiosk1")).one()
+    assert row.bezeichnung == "Serverraum A"
+    assert row.api_key_hash == "hash"
+    assert row.geloescht_am is None
+
+    # Idempotent -- ein zweiter Lauf darf nicht an der bereits vorhandenen Spalte scheitern.
     init_db()

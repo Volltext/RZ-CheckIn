@@ -70,6 +70,23 @@ def test_export_shows_placeholder_for_deleted_room(client, db):
     assert rows[1][4] == "(gelöschter Raum)"
 
 
+def test_export_resolves_room_name_after_agent_deleted(client, db):
+    """Entfernt der Admin einen Agenten (Soft-Delete, siehe
+    app/services/agents.py::delete_agent), muss der CSV-Export den Raumnamen für
+    bestehende Log-Einträge weiterhin auflösen können."""
+    _login(client, db)
+    make_agent(db, agent_id="kiosk1", bezeichnung="Serverraum A")
+    make_employee(db, rfid_uid="AABBCCDD")
+    record_rfid_scan(db, uid="AABBCCDD", raum="kiosk1")
+
+    client.post("/admin/agenten/kiosk1/loeschen", follow_redirects=False)
+
+    response = client.get("/admin/log/export.csv")
+    reader = csv.reader(io.StringIO(response.text), delimiter=";")
+    rows = list(reader)
+    assert rows[1][4] == "Serverraum A"
+
+
 def test_export_date_filter_excludes_out_of_range_entries(client, db):
     _login(client, db)
     make_employee(db, rfid_uid="AABBCCDD")

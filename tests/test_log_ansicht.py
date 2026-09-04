@@ -33,10 +33,12 @@ def test_log_ansicht_shows_placeholder_for_deleted_room(client, db):
     assert "(gelöschter Raum)" in response.text
 
 
-def test_deleting_agent_does_not_touch_existing_log_entries(client, db):
-    """Löscht der Admin einen Agenten (Raum), bleiben bestehende Log-Einträge mit dessen
-    Raumreferenz unverändert erhalten -- CheckLog.raum ist bewusst kein FK auf agents,
-    siehe app/models.py::CheckLog. Nur die Anzeige zeigt danach einen Platzhalter."""
+def test_deleting_agent_keeps_log_entries_with_room_name(client, db):
+    """Entfernt der Admin einen Agenten (Raum), bleibt die agents-Zeile als Soft-Delete
+    bestehen (siehe app/services/agents.py::delete_agent) -- die Log-Ansicht zeigt den
+    Raumnamen deshalb weiterhin an, statt eines Platzhalters. Der Platzhalter
+    "(gelöschter Raum)" gilt nur für Raum-IDs, die nie als Agent existiert haben (siehe
+    test_log_ansicht_shows_placeholder_for_deleted_room)."""
     _login(client, db)
     make_agent(db, agent_id="kiosk1", bezeichnung="Serverraum A")
     make_employee(db, rfid_uid="AABBCCDD")
@@ -50,10 +52,21 @@ def test_deleting_agent_does_not_touch_existing_log_entries(client, db):
 
     after = client.get("/admin/log")
     assert after.status_code == 200
-    # Der Log-Eintrag existiert weiterhin (Check-in taucht noch auf), nur der Raumname
-    # kann nicht mehr aufgelöst werden.
     assert "Check-in" in after.text
-    assert "(gelöschter Raum)" in after.text
+    assert "Serverraum A" in after.text
+    assert "(gelöschter Raum)" not in after.text
+
+
+def test_deleted_agent_no_longer_shown_in_active_agentenliste(client, db):
+    """Das Entfernen blendet den Agenten trotzdem aus der aktiven Liste/Raumauswahl
+    aus -- Soft-Delete heißt nicht, dass der Raum weiter aktiv nutzbar bleibt."""
+    _login(client, db)
+    make_agent(db, agent_id="kiosk1", bezeichnung="Serverraum A")
+    client.post("/admin/agenten/kiosk1/loeschen", follow_redirects=False)
+
+    response = client.get("/admin/agenten")
+    assert response.status_code == 200
+    assert "Serverraum A" not in response.text
 
 
 def test_deleting_visitor_keeps_log_entries_with_name(client, db):

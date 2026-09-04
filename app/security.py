@@ -92,7 +92,10 @@ def require_agent(request: Request, db: Session = Depends(get_db)) -> Agent:
     if not api_key:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="X-Agent-Key fehlt")
 
-    for agent in db.scalars(select(Agent)):
+    # Entfernte Agenten (geloescht_am gesetzt, siehe app/services/agents.py) bleiben in
+    # der Tabelle stehen, damit das Log den Raumnamen weiter auflösen kann -- ihr API-Key
+    # muss trotzdem ungültig werden, deshalb hier ausgeschlossen.
+    for agent in db.scalars(select(Agent).where(Agent.geloescht_am.is_(None))):
         if verify_agent_api_key(api_key, agent.api_key_hash):
             return agent
 

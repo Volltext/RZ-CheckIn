@@ -2,7 +2,8 @@
 
 Mitarbeiterkarten registrieren/zuordnen, Besucherprofile verwalten (inkl. Entfernen aus
 der aktiven Kontaktliste per Soft-Delete, siehe app/services/visitors.py),
-Log rein lesend einsehen + CSV-Export, Agenten verwalten, eigenes Passwort ändern.
+Log rein lesend einsehen + CSV-Export, Agenten verwalten (Entfernen ebenfalls per
+Soft-Delete, siehe app/services/agents.py), eigenes Passwort ändern.
 """
 
 from __future__ import annotations
@@ -34,6 +35,7 @@ from app.services.settings import (
     set_auto_checkout_hours,
     set_besucher_suche_aktiv,
 )
+from app.services.agents import delete_agent
 from app.services.visitors import VisitorCurrentlyPresentError, delete_visitor
 from app.templating import templates
 from app.config import get_settings
@@ -373,7 +375,9 @@ def log_export(
 def agenten_liste(
     request: Request, db: Session = Depends(get_db), admin: AdminUser = Depends(get_current_admin)
 ) -> HTMLResponse:
-    agenten = list(db.scalars(select(Agent).order_by(Agent.agent_id)))
+    agenten = list(
+        db.scalars(select(Agent).where(Agent.geloescht_am.is_(None)).order_by(Agent.agent_id))
+    )
     return templates.TemplateResponse(request, "admin/agenten.html", {"admin": admin, "agenten": agenten})
 
 
@@ -386,6 +390,10 @@ def agent_anlegen(
     admin: AdminUser = Depends(get_current_admin),
 ) -> HTMLResponse:
     agent_id = agent_id.strip()
+    # db.get() findet auch bereits entfernte (Soft-Delete) Agenten -- die Prüfung
+    # verhindert damit zugleich, dass eine agent_id nach dem Entfernen erneut vergeben
+    # wird und bestehende Log-Einträge dadurch auf einen anderen Raum umgedeutet werden
+    # (siehe app/services/agents.py).
     if db.get(Agent, agent_id) is not None:
         raise HTTPException(status_code=409, detail="Agent-ID bereits vergeben")
     api_key = generate_agent_api_key()
@@ -400,10 +408,7 @@ def agent_anlegen(
 def agent_loeschen(
     agent_id: str, db: Session = Depends(get_db), admin: AdminUser = Depends(get_current_admin)
 ) -> RedirectResponse:
-    agent = db.get(Agent, agent_id)
-    if agent is not None:
-        db.delete(agent)
-        db.commit()
+    delete_agent(db, agent_id)
     return RedirectResponse(url="/admin/agenten", status_code=303)
 
 

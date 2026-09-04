@@ -38,13 +38,15 @@ router = APIRouter(tags=["kiosk"])
 
 
 def _resolve_raum(db: Session, raum: str) -> str | None:
-    """Validiert eine vom Kiosk übermittelte Raum-Angabe gegen die vorhandenen Agenten
-    (siehe app/models.py::Agent -- ein Agent pro Technikraum). Unbekannte/leere Werte
-    werden zu None, statt beliebigen Text ins Log zu übernehmen."""
+    """Validiert eine vom Kiosk übermittelte Raum-Angabe gegen die vorhandenen, aktiven
+    Agenten (siehe app/models.py::Agent -- ein Agent pro Technikraum). Unbekannte, leere
+    oder entfernte (geloescht_am gesetzt, siehe app/services/agents.py) Werte werden zu
+    None, statt beliebigen Text ins Log zu übernehmen."""
     raum = (raum or "").strip()
     if not raum:
         return None
-    return raum if db.get(Agent, raum) is not None else None
+    agent = db.get(Agent, raum)
+    return raum if agent is not None and agent.geloescht_am is None else None
 
 
 def _room_context(db: Session) -> dict:
@@ -52,7 +54,7 @@ def _room_context(db: Session) -> dict:
     ein Eintrag pro vorhandenem Agenten (= Raum) mit Mitarbeiterzahl (nur Punkte/Zähler,
     siehe app/services/attendance.py::PresentPerson) und externen Besuchern, plus ein
     Sammel-Eintrag für Personen ohne (mehr) gültige Raumzuordnung."""
-    agenten = list(db.scalars(select(Agent).order_by(Agent.agent_id)))
+    agenten = list(db.scalars(select(Agent).where(Agent.geloescht_am.is_(None)).order_by(Agent.agent_id)))
     anwesenheit = presence_by_room(db)
 
     rooms = []
@@ -172,8 +174,10 @@ def besucher_suche_seite(request: Request, raum: str = "", db: Session = Depends
     Raumauswahl (zwei große Touch-Buttons, siehe kiosk/besucher_suche.html); bei genau
     einem Raum wird er automatisch übernommen, bei keinem läuft der Checkin wie bisher
     ganz ohne Raumzuordnung."""
-    agenten = list(db.scalars(select(Agent).order_by(Agent.agent_id)))
+    agenten = list(db.scalars(select(Agent).where(Agent.geloescht_am.is_(None)).order_by(Agent.agent_id)))
     gewaehlt = db.get(Agent, raum.strip()) if raum.strip() else None
+    if gewaehlt is not None and gewaehlt.geloescht_am is not None:
+        gewaehlt = None
 
     if gewaehlt is None and len(agenten) > 1:
         return templates.TemplateResponse(
