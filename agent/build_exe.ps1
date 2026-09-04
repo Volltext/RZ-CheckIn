@@ -32,7 +32,21 @@ Set-Location $PSScriptRoot
 
 $venvDir = "build-venv"
 if (-not (Test-Path $venvDir)) {
-    py -3 -m venv $venvDir
+    if (Get-Command py -ErrorAction SilentlyContinue) {
+        py -3 -m venv $venvDir
+    } elseif (Get-Command python -ErrorAction SilentlyContinue) {
+        python -m venv $venvDir
+    } else {
+        Write-Host ""
+        Write-Host "FEHLER: Es wurde weder der 'py'-Launcher noch 'python' gefunden." -ForegroundColor Red
+        Write-Host "Auf diesem Build-Rechner ist Python entweder nicht installiert oder nicht im PATH."
+        Write-Host ""
+        Write-Host "Loesung:"
+        Write-Host "  1. Python von https://www.python.org/downloads/ installieren (Version 3.x)."
+        Write-Host "  2. Im Installer die Haken bei 'Add python.exe to PATH' UND 'py launcher' setzen."
+        Write-Host "  3. Danach dieses PowerShell-Fenster neu oeffnen und build_exe.ps1 erneut ausfuehren."
+        throw "Python wurde nicht gefunden."
+    }
 }
 $pip = Join-Path $venvDir "Scripts\pip.exe"
 $pyinstaller = Join-Path $venvDir "Scripts\pyinstaller.exe"
