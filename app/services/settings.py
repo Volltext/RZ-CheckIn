@@ -10,6 +10,7 @@ from app.models import Setting
 
 _KEY_AUTO_CHECKOUT_HOURS = "auto_checkout_hours"
 _KEY_BESUCHER_SUCHE_AKTIV = "besucher_suche_aktiv"
+_KEY_RETENTION_DAYS = "retention_days"
 
 settings = get_settings()
 
@@ -52,4 +53,25 @@ def set_besucher_suche_aktiv(db, aktiv: bool) -> None:
         db.add(Setting(key=_KEY_BESUCHER_SUCHE_AKTIV, value=value))
     else:
         row.value = value
+    db.commit()
+
+
+def get_retention_days(db) -> int:
+    """Aufbewahrungsfrist für checklog-Einträge in Tagen (siehe app/services/retention.py).
+    Ohne Admin-Wert gilt der Startwert aus app/config.py."""
+    row = db.get(Setting, _KEY_RETENTION_DAYS)
+    if row is None:
+        return settings.retention_days
+    try:
+        return int(row.value)
+    except ValueError:
+        return settings.retention_days
+
+
+def set_retention_days(db, days: int) -> None:
+    row = db.get(Setting, _KEY_RETENTION_DAYS)
+    if row is None:
+        db.add(Setting(key=_KEY_RETENTION_DAYS, value=str(days)))
+    else:
+        row.value = str(days)
     db.commit()

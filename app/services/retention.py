@@ -1,11 +1,15 @@
 """Wartungsjob: löscht checklog-Einträge, die älter als die Aufbewahrungsfrist sind
-(Konzept 7: 2 Jahre, hart löschen), sowie Besucherprofile, zu denen danach kein
-Log-Eintrag mehr existiert.
+(Konzept 7: hart löschen), sowie Besucherprofile, zu denen danach kein Log-Eintrag mehr
+existiert.
 
 Das ist die einzige erlaubte "Lösch"-Operation auf dem sonst append-only Log. Sie läuft
 bewusst getrennt von der normalen Anwendungslogik (eigener CLI-Befehl `purge`, siehe
 app/cli.py, per systemd-Timer / Podman-Quadlet-Timer täglich angestoßen) und öffnet das
 DELETE-Fenster (`retention_window`) nur für die Dauer einer einzigen Transaktion.
+
+Die Frist selbst ist zur Laufzeit im Admin-Bereich änderbar (siehe
+app/services/settings.py::get_retention_days), der Wert aus app/config.py dient nur als
+Startwert, solange der Admin noch nichts anderes eingestellt hat.
 """
 
 from __future__ import annotations
@@ -16,10 +20,8 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import delete, select, text
 from sqlalchemy.orm import Session
 
-from app.config import get_settings
 from app.models import CheckLog, Visitor
-
-settings = get_settings()
+from app.services.settings import get_retention_days
 
 
 @dataclass
@@ -29,9 +31,9 @@ class RetentionResult:
     visitors_removed: int
 
 
-def _cutoff(now: datetime | None = None) -> datetime:
+def _cutoff(db: Session, now: datetime | None = None) -> datetime:
     reference = now or datetime.now(timezone.utc)
-    return reference - timedelta(days=settings.retention_days)
+    return reference - timedelta(days=get_retention_days(db))
 
 
 def find_stale_checklog_ids(db: Session, cutoff: datetime) -> list[str]:
@@ -46,7 +48,7 @@ def find_orphan_visitor_ids(db: Session) -> list[str]:
 
 
 def purge(db: Session, *, now: datetime | None = None, dry_run: bool = False) -> RetentionResult:
-    cutoff = _cutoff(now)
+    cutoff = _cutoff(db, now)
     stale_ids = find_stale_checklog_ids(db, cutoff)
 
     if dry_run:
