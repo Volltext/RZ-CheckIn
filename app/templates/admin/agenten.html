@@ -31,8 +31,8 @@ am Kiosk auswählen) werden entsprechend zugeordnet.</p>
         <td>{{ a.last_seen.strftime("%d.%m.%Y %H:%M:%S") if a.last_seen else "noch nie" }}</td>
         <td>
           <form method="post" action="/admin/agenten/{{ a.agent_id }}/loeschen" class="formular-inline"
-                onsubmit="return confirm('Agent {{ a.agent_id }} wirklich löschen? Der API-Key wird ungültig.');">
-            <button type="submit" class="button button-warnung">Löschen</button>
+                onsubmit="return confirm('Agent {{ a.agent_id }} entfernen? Der API-Key wird sofort ungültig. Bestehende Log-Einträge bleiben mit Raumnamen erhalten.');">
+            <button type="submit" class="button button-warnung">Entfernen</button>
           </form>
         </td>
       </tr>

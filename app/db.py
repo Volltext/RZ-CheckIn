@@ -119,6 +119,11 @@ def _add_missing_columns(cursor) -> None:
         # Raumzuordnung für die Split-Ansicht je Technikraum (siehe app/models.py::CheckLog).
         cursor.execute("ALTER TABLE checklog ADD COLUMN raum TEXT")
 
+    if _table_exists(cursor, "agents") and "geloescht_am" not in _legacy_columns(cursor, "agents"):
+        # Soft-Delete für Agenten/Räume, analog zu visitors.geloescht_am (siehe
+        # app/models.py::Agent).
+        cursor.execute("ALTER TABLE agents ADD COLUMN geloescht_am TEXT")
+
 
 def _migrate_renamed_tables(cursor, renamed: set[str]) -> None:
     if "employees" in renamed:

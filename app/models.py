@@ -114,7 +114,16 @@ class Agent(Base):
     Raumzuordnung für die Split-Ansicht im Kiosk-Dashboard: `bezeichnung` ist der
     Anzeigename des Raums, `agent_id` der Wert, der auf CheckLog.raum landet (siehe
     app/services/attendance.py::presence_by_room). Es gibt bewusst kein eigenes
-    Raum-Modell dafür."""
+    Raum-Modell dafür.
+
+    `geloescht_am` funktioniert analog zu Visitor.geloescht_am (siehe dort): Löschen
+    eines Agenten im Admin-Bereich ist ein Soft-Delete, damit Log-Ansicht/CSV-Export den
+    Raumnamen für bestehende Log-Einträge weiterhin auflösen können (siehe
+    app/services/agents.py::delete_agent). Da `agent_id` -- anders als bei Visitor --
+    eine vom Admin frei gewählte, wiederverwendbare Kennung ist, verhindert das
+    Stehenlassen der Zeile zugleich, dass eine neu angelegte Agent-ID versehentlich
+    dieselbe alte `agent_id` wiederverwendet und dadurch bestehende Log-Einträge auf
+    einen ganz anderen (neuen) Raum umgedeutet würden."""
 
     __tablename__ = "agents"
 
@@ -123,6 +132,7 @@ class Agent(Base):
     api_key_hash: Mapped[str] = mapped_column(String(200))
     erstellt_am: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
     last_seen: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    geloescht_am: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class AdminUser(Base):
