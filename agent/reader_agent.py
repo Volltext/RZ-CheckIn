@@ -291,6 +291,25 @@ def _parse_usb_vid_pid(reader: str) -> tuple[int, int] | None:
         return None
 
 
+def _pyusb_backend():
+    """Liefert pyusb explizit die passende libusb-Bibliothek aus dem PyPI-Paket `libusb`
+    (siehe agent/requirements.txt), statt sich auf pyusbs eigene Systemsuche zu
+    verlassen. Genau die Systemsuche ist unter Windows das eigentliche Problem: Zadig
+    installiert per libusbK/WinUSB nur den Kernel-Treiber, aber keine `libusb-1.0.dll`
+    irgendwo im PATH -- pyusb meldet dann 'No backend available', obwohl das Gerät
+    treiberseitig längst nutzbar wäre. Das `libusb`-Paket bringt für jede Plattform
+    (inkl. Windows x86/x64/arm64) die passende vorkompilierte Bibliothek gleich mit.
+    Gibt None zurück, wenn das Paket fehlt -- pyusb sucht dann wie bisher selbst."""
+    try:
+        import libusb
+        import usb.backend.libusb1
+
+        return usb.backend.libusb1.get_backend(find_library=lambda _: libusb.dll._name)
+    except Exception as exc:  # noqa: BLE001 - Fallback auf pyusbs eigene Suche
+        LOG.debug("Bundled libusb-Backend nicht verfügbar (%s), nutze pyusb-Systemsuche", exc)
+        return None
+
+
 def _try_usb_reset(reader: str) -> bool:
     """Best-effort USB-Reset des Readers über pyusb, BEVOR nfcpy es erneut versucht.
     Manche Reader (siehe reset_after_failures-Kommentar bei AgentConfig) reagieren auf
@@ -307,7 +326,7 @@ def _try_usb_reset(reader: str) -> bool:
         LOG.warning("USB-Reset übersprungen: pyusb nicht verfügbar")
         return False
     try:
-        device = usb.core.find(idVendor=vid_pid[0], idProduct=vid_pid[1])
+        device = usb.core.find(idVendor=vid_pid[0], idProduct=vid_pid[1], backend=_pyusb_backend())
         if device is None:
             LOG.warning("USB-Reset übersprungen: Gerät %s aktuell nicht auffindbar", reader)
             return False

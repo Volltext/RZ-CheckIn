@@ -54,6 +54,12 @@ Write-Host "Baue RZ-CheckIn-Agent.exe ..."
 # Laufzeit gebauten Modulnamen -- PyInstallers statische Analyse sieht solche Strings
 # nicht und wuerde die Module sonst weglassen (ModuleNotFoundError erst beim Kiosk-PC).
 # --collect-submodules nimmt deshalb das komplette nfc-Paket mit.
+#
+# Das libusb-Paket (siehe requirements.txt) liefert die fuer den automatischen USB-Reset
+# genutzte libusb-1.0.dll als reine Binaerdatei im Paketordner mit, keinen
+# Python-Code -- --collect-submodules hilft dafuer nichts, --collect-data nimmt
+# stattdessen alle Nicht-Python-Dateien des Pakets (inkl. der DLLs fuer alle
+# Ziel-Plattformen) unveraendert mit in die .exe auf.
 & $pyinstaller `
     --noconfirm `
     --onefile `
@@ -61,6 +67,7 @@ Write-Host "Baue RZ-CheckIn-Agent.exe ..."
     --name "RZ-CheckIn-Agent" `
     --paths . `
     --collect-submodules nfc `
+    --collect-data libusb `
     tray_app.py
 
 Write-Host ""

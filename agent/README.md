@@ -70,6 +70,16 @@ gegenzusteuern (siehe `reset_after_failures`/`reset_command` in `agent.ini.examp
    löst der Agent selbst einen **USB-Reset** über pyusb aus (`agent/reader_agent.py::
    _try_usb_reset`) -- softwareseitig dieselbe Art Reset, die auch beim Aus-/Einstecken
    passiert, ohne dass jemand am Gerät sein muss. Reicht bei vielen Fällen bereits aus.
+
+   Damit das unter Windows überhaupt funktioniert, braucht pyusb eine `libusb-1.0.dll`
+   -- die installiert Zadig NICHT automatisch irgendwo im PATH (Zadig ersetzt nur den
+   Kernel-Treiber), pyusb würde also mit `No backend available` scheitern. Deshalb
+   steht in `requirements.txt` zusätzlich das PyPI-Paket
+   [`libusb`](https://pypi.org/project/libusb/), das die passende, vorkompilierte
+   Bibliothek für jede Zielplattform (inkl. Windows x86/x64/arm64) gleich mitbringt --
+   ein normales `pip install -r requirements.txt` reicht, keine manuelle DLL-Suche
+   nötig. Der .exe-Build (`build_exe.ps1`) nimmt die Bibliothek über
+   `--collect-data libusb` mit auf.
 2. Hilft das nicht, kann zusätzlich `reset_command` gesetzt werden: ein beliebiger
    Shell-Befehl, der NACH dem erfolglosen USB-Reset läuft. Unter Windows bietet sich ein
    Deaktivieren+Aktivieren des Geräts im Geräte-Manager an, z.B. per
