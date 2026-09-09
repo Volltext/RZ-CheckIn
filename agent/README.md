@@ -56,6 +56,39 @@ USB-Seriell/UART melden (`reader = tty:COM3:pn532`, siehe COM-Port im Geräte-Ma
 für die ist kein Zadig/Treiberwechsel nötig, sie sind aber nicht die hier beschaffte
 Referenzhardware.
 
+### Wie der Agent den Reader anspricht (Dauerbetrieb)
+
+Für den Kiosk-Betrieb sind zwei Details in `run_reader_loop` wichtig -- beide sind der
+Grund dafür, dass der Leser nach einem Scan sofort für den nächsten Ausweis bereit ist:
+
+- **Der Reader wird einmal geöffnet und bleibt offen.** Pro Karte wird nur neu gesucht,
+  nicht neu verbunden. nfcpys `clf.connect()` kehrt nach *jeder* erkannten Karte zurück
+  -- wer die Verbindung drumherum in der Schleife auf- und wieder abbaut, schließt den
+  ACR122U also nach jedem einzelnen Scan. Passiert das mitten in einer laufenden
+  Kartensitzung, bleiben Antwortdaten im USB-Endpunkt liegen; das nächste Öffnen liest
+  sie als vermeintliche Versionsantwort des Readers und scheitert
+  (`failed to retrieve ACR122U version string` → `[Errno 19] No such device`) -- der
+  Leser ist dann bis zum physischen Aus-/Einstecken tot.
+- **Es wird nur bis zur Kartenerkennung gegangen** (`clf.sense`), die Karte selbst wird
+  nicht protokollseitig aktiviert. Für den Check-in wird ausschließlich die UID
+  gebraucht, und die steht bereits in der Antwort auf das Suchkommando -- byte-identisch
+  mit dem, was nfcpy nach der Aktivierung als `Tag.identifier` liefern würde. Die
+  Aktivierung ist bei DESFire-Karten der fehleranfälligste Teil (daher die Warnung
+  `does not support fsd 256` im Log) und entfällt damit komplett, ebenso die
+  anschließende Anwesenheitsprüfung, die die Karte im Sekundentakt weiter anspricht.
+
+Einzelne Lesefehler (typischerweise: die Karte wird mitten im Lesevorgang weggezogen)
+werden übergangen; erst mehrere Fehler in Folge oder ein wirklich verschwundenes Gerät
+führen zum Neuaufbau der Verbindung. Beim Schließen gibt der Agent den USB-Handle immer
+selbst frei, weil nfcpy dabei noch ein Kommando an den Reader schickt und den Handle
+offen lässt, wenn dieses Kommando fehlschlägt.
+
+Der Piepton beim Scannen kommt ebenfalls vom Agenten (`beep_on_scan`, siehe
+`agent.ini.example`) und nicht von nfcpys `beep-on-connect`: nfcpy räumt dem ACR122U
+dort nur 400 ms Antwortzeit für einen 300 ms langen Piepton ein -- wird das knappe
+Zeitfenster überschritten, kommt die Antwort trotzdem, bleibt im Endpunkt liegen und
+bringt die Verbindung aus dem Tritt.
+
 ### Automatischer Reader-Reset bei hängendem Gerät
 
 Manche ACR122U-Exemplare hängen sich nach einem USB-Aussetzer (z.B. USB-Selective-
@@ -67,14 +100,22 @@ jedes Mal ein manuelles Eingreifen am Kiosk-PC braucht, versucht der Agent von s
 gegenzusteuern (siehe `reset_after_failures`/`reset_command` in `agent.ini.example`):
 
 1. Nach `reset_after_failures` Fehlversuchen IN FOLGE (Standard 3, `0` deaktiviert)
-   löst der Agent selbst einen **USB-Reset** über pyusb aus (`agent/reader_agent.py::
+   löst der Agent selbst einen **USB-Reset** aus (`agent/reader_agent.py::
    _try_usb_reset`) -- softwareseitig dieselbe Art Reset, die auch beim Aus-/Einstecken
-   passiert, ohne dass jemand am Gerät sein muss. Reicht bei vielen Fällen bereits aus.
+   passiert, ohne dass jemand am Gerät sein muss. Reicht in vielen Fällen bereits aus
+   und räumt nebenbei auch Datenreste in den USB-Endpunkten weg.
 
-   Damit das unter Windows überhaupt funktioniert, braucht pyusb eine `libusb-1.0.dll`
-   -- die installiert Zadig NICHT automatisch irgendwo im PATH (Zadig ersetzt nur den
-   Kernel-Treiber), pyusb würde also mit `No backend available` scheitern. Deshalb
-   steht in `requirements.txt` zusätzlich das PyPI-Paket
+   Der Reset läuft über **libusb1/usb1** -- also über genau die Bibliothek, die auch
+   nfcpy selbst für den USB-Zugriff nutzt (`nfc/clf/transport.py`:
+   `import usb1 as libusb`). Sie ist mit nfcpy ohnehin installiert und spricht das
+   Gerät über denselben Treiber an, unter dem der Reader schon läuft -- es gibt also
+   nichts zusätzlich einzurichten.
+
+   Klappt das auf einem Gerät nicht, versucht der Agent es zusätzlich über **pyusb**.
+   Das ist eine andere Bibliothek mit eigener DLL-Suche: sie braucht unter Windows eine
+   `libusb-1.0.dll`, die Zadig NICHT automatisch irgendwo im PATH installiert (Zadig
+   ersetzt nur den Kernel-Treiber) -- ohne sie meldet pyusb `No backend available`.
+   Deshalb steht in `requirements.txt` zusätzlich das PyPI-Paket
    [`libusb`](https://pypi.org/project/libusb/), das die passende, vorkompilierte
    Bibliothek für jede Zielplattform (inkl. Windows x86/x64/arm64) gleich mitbringt --
    ein normales `pip install -r requirements.txt` reicht, keine manuelle DLL-Suche

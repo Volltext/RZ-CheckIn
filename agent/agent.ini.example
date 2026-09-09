@@ -32,9 +32,19 @@ heartbeat_interval = 30
 ; Sekunden zwischen zwei Versuchen, den Offline-Puffer zu leeren.
 spool_flush_interval = 15
 
-; Mindestabstand zwischen zwei Reads, damit eine liegen bleibende Karte nicht
-; mehrfach pro Sekunde ausgelesen wird (zusätzlich zur serverseitigen Entprellung).
+; Mindestabstand zwischen zwei Reads DERSELBEN Karte, damit ein liegen bleibender
+; Ausweis nicht mehrfach pro Sekunde ausgelesen wird (zusätzlich zur serverseitigen
+; Entprellung). Ein anderer Ausweis wird immer sofort gemeldet, hier wird also nichts
+; "verpasst", wenn die nächste Person direkt danach scannt.
 scan_cooldown = 1.0
+
+; Pause zwischen zwei Suchdurchläufen des Readers. Kleiner = der Leser reagiert
+; schneller, aber die USB-Last steigt. 0 vermeiden.
+poll_interval = 0.2
+
+; Kurzer Piepton + rote LED am ACR122U als Rückmeldung beim Scannen. false = still
+; (z.B. in einem Großraumbüro), an der Erkennung ändert sich dadurch nichts.
+beep_on_scan = true
 
 ; TLS-Prüfung. false nur für Testaufbauten ohne gültiges Zertifikat verwenden.
 verify_tls = true
