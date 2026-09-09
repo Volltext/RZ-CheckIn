@@ -101,11 +101,19 @@ class AgentConfig:
                 "sonst schlägt jede Anfrage mit 'No connection adapters were found' fehl"
             )
 
+        reader = get("reader", "usb")
+        reader_scheme = reader.split(":", 1)[0]
+        if reader_scheme not in ("usb", "tty", "com", "udp"):
+            raise ValueError(
+                f"reader hat kein gültiges nfcpy-Format (aktuell: {reader!r}) — erwartet wird z.B. "
+                "'usb:072f:2200' für den ACR122U (nur der Pfad, ohne Gerätename davor)"
+            )
+
         return cls(
             server_url=server_url,
             agent_id=agent_id,
             api_key=api_key,
-            reader=get("reader", "usb"),
+            reader=reader,
             heartbeat_interval=get("heartbeat_interval", 30.0, float),
             spool_flush_interval=get("spool_flush_interval", 15.0, float),
             scan_cooldown=get("scan_cooldown", 1.0, float),
