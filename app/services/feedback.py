@@ -1,7 +1,7 @@
 """Kurzlebiger In-Memory-Puffer für das Scan-Feedback auf dem Kiosk-Bildschirm
-("Max Mustermann eingecheckt ✓"). Der Reader-Agent löst den Scan über die API aus, der
-Kiosk-Browser pollt separat per htmx — dieser Puffer verbindet beides, ohne dass der
-Browser selbst mit dem Reader spricht.
+("eingecheckt ✓", "Bitte Dienstausweis vorhalten"). Der Reader-Agent löst den Scan über
+die API aus, der Kiosk-Browser pollt separat — dieser Puffer verbindet beides, ohne dass
+der Browser selbst mit dem Reader spricht.
 
 Bewusst im Prozessspeicher (kein DB-Eintrag): es ist reines UI-Feedback mit Sekunden-TTL,
 kein Teil des Protokolls. Setzt voraus, dass die Anwendung mit einem einzigen
@@ -18,9 +18,10 @@ from datetime import datetime, timezone
 
 _MAX_EVENTS = 5
 _TTL_SECONDS = 8
-# Der Hinweis auf eine unbekannte Karte braucht etwas länger als ein kurzes
-# "eingecheckt"-Banner, damit Zeit bleibt, ihn zu lesen.
-_TTL_SECONDS_UNKNOWN_CARD = 20
+# Der Hinweis auf eine abgelehnte Karte ("Bitte Dienstausweis vorhalten", siehe
+# app/services/uid_muster.py) braucht länger als ein kurzes "eingecheckt"-Banner: er will
+# gelesen und verstanden werden, nicht nur wahrgenommen.
+_TTL_SECONDS_ABGELEHNT = 20
 
 _lock = threading.Lock()
 _events: deque["ScanFeedbackEvent"] = deque(maxlen=_MAX_EVENTS)
@@ -43,7 +44,7 @@ def latest_event() -> ScanFeedbackEvent | None:
         if not _events:
             return None
         event = _events[-1]
-    ttl = _TTL_SECONDS_UNKNOWN_CARD if event.result == "unknown_card" else _TTL_SECONDS
+    ttl = _TTL_SECONDS_ABGELEHNT if event.result == "rejected" else _TTL_SECONDS
     age = (datetime.now(timezone.utc) - event.occurred_at).total_seconds()
     if age > ttl:
         return None

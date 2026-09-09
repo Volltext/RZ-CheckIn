@@ -64,7 +64,9 @@ function bindSearchInputs() {
   });
 }
 
-function beep() {
+function beep(frequenz) {
+  // Tiefer Ton fürs Ablehnen einer Karte, heller fürs Ein-/Auschecken -- am Kiosk hört
+  // man den Unterschied, auch ohne auf den Bildschirm zu schauen.
   try {
     const AudioCtx = window.AudioContext || window.webkitAudioContext;
     const ctx = new AudioCtx();
@@ -72,7 +74,7 @@ function beep() {
     const gain = ctx.createGain();
     osc.connect(gain);
     gain.connect(ctx.destination);
-    osc.frequency.value = 880;
+    osc.frequency.value = frequenz || 880;
     gain.gain.setValueAtTime(0.15, ctx.currentTime);
     osc.start();
     osc.stop(ctx.currentTime + 0.15);

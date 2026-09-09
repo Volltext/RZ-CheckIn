@@ -22,7 +22,9 @@ class RfidScanRequest(BaseModel):
 
 
 class RfidScanResponse(BaseModel):
-    result: Literal["checkin", "checkout", "ignored"]
+    # "rejected": UID passt auf keines der im Admin-Bereich hinterlegten Muster und wurde
+    # deshalb nicht protokolliert (siehe app/services/uid_muster.py).
+    result: Literal["checkin", "checkout", "ignored", "rejected"]
     action_timestamp: datetime | None = None
 
 

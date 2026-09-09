@@ -15,10 +15,11 @@ from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.models import CheckLog, Visitor
+from app.services.uid_muster import uid_passt
 
 settings = get_settings()
 
-ScanResult = str  # "checkin" | "checkout" | "ignored"
+ScanResult = str  # "checkin" | "checkout" | "ignored" | "rejected"
 
 
 @dataclass
@@ -139,13 +140,24 @@ def record_rfid_scan(
 
     Es gibt bewusst kein Mitarbeiter-Register und keine Prüfung, ob die Karte "bekannt"
     ist -- jede UID darf jederzeit ein-/auschecken, die UID selbst ist die einzige im Log
-    gespeicherte Kennung (siehe app/models.py::CheckLog).
+    gespeicherte Kennung (siehe app/models.py::CheckLog). Einzige Einschränkung ist die
+    im Admin-Bereich einstellbare UID-Syntax-Whitelist (siehe unten und
+    app/services/uid_muster.py) -- sie grenzt den Check-in auf die eigenen Dienstausweise
+    ein, ohne dass dafür einzelne Karten erfasst werden müssten.
 
     `raum` ist die Agent-ID des scannenden Readers (ein Agent pro Technikraum, siehe
     app/models.py::Agent) und wird unverändert auf den Log-Eintrag übernommen."""
+    from app.services.settings import get_uid_muster  # lokal: Zirkelimport vermeiden
 
     uid = uid.strip().upper()
     event_time = timestamp or _now()
+
+    # Vor der Entprellung: eine abgelehnte Karte hinterlässt bewusst KEINEN Log-Eintrag
+    # (fremde UIDs sollen gar nicht erst gespeichert werden), es gibt also auch nichts zu
+    # entprellen -- und der Hinweis am Kiosk soll bei jedem erneuten Vorhalten wieder
+    # erscheinen.
+    if not uid_passt(uid, get_uid_muster(db)):
+        return RfidScanOutcome(result="rejected")
 
     last = get_last_log_entry(db, "employee", uid)
     if last is not None:

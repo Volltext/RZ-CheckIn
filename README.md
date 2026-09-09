@@ -225,6 +225,10 @@ darunter eine Split-Ansicht mit einer Spalte je Technikraum:
 - **Kein Mitarbeiter-Register**: jede am Reader gescannte Karten-UID checkt sich direkt
   selbst ein bzw. aus (Toggle), ganz ohne vorherige Registrierung im Admin-Bereich —
   welche UID das ist, spielt keine Rolle, sie wird nur als Kennung im Log gespeichert.
+  Optional lässt sich im Admin-Bereich einschränken, welche UID-Syntax überhaupt
+  zugelassen ist (z. B. nur die eigenen Dienstausweise); nicht zugelassene Karten
+  erzeugen keinen Log-Eintrag, sondern den Hinweis "Bitte Dienstausweis vorhalten" —
+  siehe "Zugelassene Karten-UIDs" unten.
 - **Externe Besucher einchecken**: eigene, für Touch-Terminals optimierte Maske
   (`/kiosk/besucher`) mit Suche nach vorhandenem Profil (im Admin-Bereich unter
   "Einstellungen" an-/abschaltbar) und Formular für ein neues Profil; der
@@ -250,7 +254,8 @@ ganz ohne Raumzuordnung.
 ```
 app/            FastAPI-Anwendung (läuft im Container)
   routers/      api_agent, api_public (inkl. /health), kiosk, admin
-  services/     attendance (Toggle-Logik), retention, export, visitors, feedback, settings
+  services/     attendance (Toggle-Logik), uid_muster (zugelassene Karten-UIDs),
+                retention, export, visitors, feedback, settings
   templates/    Jinja2-Templates (kiosk/, admin/)
   static/       CSS + minimales eigenes JS (kein CDN, siehe unten)
   cli.py        python -m app.cli {create-admin, create-agent, purge}
@@ -296,7 +301,8 @@ Jeder Test läuft gegen eine frische, temporäre SQLite-Datenbank (siehe
 - **Kein Mitarbeiter-Register**: es gibt bewusst keine `employees`-Tabelle. Jede am
   Reader gescannte Karten-UID togglet direkt in `checklog` (siehe unten) — ohne
   vorherige Registrierung, ohne Prüfung, ob die Karte "bekannt" ist (siehe
-  `app/services/attendance.py::record_rfid_scan`).
+  `app/services/attendance.py::record_rfid_scan`). Einzige Einschränkung ist die
+  optionale UID-Syntax-Whitelist (siehe "Zugelassene Karten-UIDs" unten).
 - `visitors` — Besucher-Stammdaten (Name, Firma, Telefon), dauerhaft/wiederverwendbar;
   DSGVO-Löschung entfernt die Zeile, das Log bleibt unangetastet (siehe unten).
 - `checklog` — append-only, `person_type` + `person_id` (kein FK, polymorpher Verweis;
@@ -312,8 +318,9 @@ Jeder Test läuft gegen eine frische, temporäre SQLite-Datenbank (siehe
   zugleich als Raumzuordnung für die Split-Ansicht (siehe oben) — es gibt bewusst kein
   eigenes Raum-Modell dafür.
 - `settings` — Key-Value-Ablage für zur Laufzeit im Admin-Bereich änderbare
-  Einstellungen (aktuell: `auto_checkout_hours`, `besucher_suche_aktiv`, siehe unten),
-  im Unterschied zu `app/config.py` (Umgebungsvariablen, nur beim Start gelesen).
+  Einstellungen (aktuell: `auto_checkout_hours`, `besucher_suche_aktiv`,
+  `retention_days`, `uid_muster`, siehe unten), im Unterschied zu `app/config.py`
+  (Umgebungsvariablen, nur beim Start gelesen).
 
 ### Automatisches Auschecken
 
@@ -324,6 +331,45 @@ konfigurierte Anzahl Stunden zurückliegt (0 = deaktiviert, Standard 12h). Der L
 ist als `source=auto`, `operator="System (automatisch)"` erkennbar. Geprüft wird alle
 `RZ_AUTO_CHECKOUT_CHECK_INTERVAL_SECONDS` (Standard 5 Minuten) — siehe
 `app/services/attendance.py::run_auto_checkout`.
+
+### Zugelassene Karten-UIDs (UID-Syntax-Whitelist)
+
+Unter `/admin/einstellungen` lässt sich festlegen, welche Karten sich am Reader
+ein-/auschecken dürfen. Hintergrund: Da es bewusst kein Mitarbeiter-Register gibt und
+jede gescannte UID direkt togglet, würde sonst auch die Karte einer Fremdfirma oder eine
+Hotelkarte einen Check-in auslösen. Die Muster grenzen das auf die eigenen Dienstausweise
+ein, ohne dass dafür jede Karte einzeln erfasst werden müsste.
+
+Ein Muster pro Zeile, Platzhalter bewusst simpel gehalten (keine regulären Ausdrücke):
+
+| Platzhalter | Bedeutung |
+| --- | --- |
+| `x` bzw. `X` | genau ein Zeichen |
+| `?` | genau ein Zeichen (gleichbedeutend mit `x`) |
+| `*` | beliebig viele Zeichen (auch keine) |
+
+Beispiel: `12xxxxxxxxx89` lässt alle 13-stelligen UIDs zu, die mit `12` beginnen und auf
+`89` enden; `04*` alle UIDs, die mit `04` beginnen. Groß-/Kleinschreibung spielt keine
+Rolle, alles andere wird wörtlich verglichen. **Leeres Feld = keine Einschränkung**
+(Standard, Verhalten wie bisher).
+
+Passt eine gescannte UID auf keines der Muster:
+
+- der Scan wird **nicht** protokolliert (fremde UIDs landen gar nicht erst in der
+  Datenbank) und löst weder Check-in noch Check-out aus,
+- der Kiosk zeigt für 20 Sekunden **„Bitte Dienstausweis vorhalten“** (mit tieferem
+  Signalton als beim regulären Ein-/Auschecken),
+- der Agent schreibt eine Warnung in sein Log (`Scan ... abgelehnt`),
+- die API antwortet mit `{"result": "rejected"}`.
+
+Im Formular lässt sich zusätzlich eine **Test-UID** angeben: nach dem Speichern zeigt die
+Seite an, ob diese UID zugelassen wäre — praktisch, um ein Muster zu prüfen, ohne mit der
+Karte zum Kiosk zu laufen. Der Startwert kann per `RZ_UID_MUSTER` vorgegeben werden
+(kommagetrennt), siehe `app/services/uid_muster.py`.
+
+> Hinweis: Wird das Muster verschärft, während jemand noch eingecheckt ist, kann sich
+> diese Person nicht mehr selbst auschecken. Solche Fälle räumt das automatische
+> Auschecken (siehe oben) auf, alternativ der Admin-Bereich unter "Mitarbeiter".
 
 ### Besuchersuche an-/abschalten
 
@@ -405,6 +451,7 @@ Die wichtigsten Variablen für den Einstieg:
 | `RZ_ADMIN_PASSWORD` | Passwort für den automatisch angelegten Erst-Admin | leer → zufällig, siehe Schnellstart Schritt 4 |
 | `RZ_AUTO_CHECKOUT_DEFAULT_HOURS` | Startwert fürs automatische Auschecken (danach zur Laufzeit unter "Einstellungen" änderbar) | `12` |
 | `RZ_RETENTION_DAYS` | Aufbewahrungsfrist für Log-Einträge | `730` (2 Jahre) |
+| `RZ_UID_MUSTER` | Startwert für die zugelassenen Karten-UIDs, kommagetrennte Muster (danach zur Laufzeit unter "Einstellungen" änderbar) | leer = keine Einschränkung |
 | `RZ_ADMIN_IP_ALLOWLIST` | Kommagetrennte IPs/CIDRs, die zusätzlich zum Login auf `/admin` zugreifen dürfen | leer = keine Einschränkung |
 
 ### Updates einspielen

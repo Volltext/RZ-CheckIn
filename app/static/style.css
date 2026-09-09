@@ -259,6 +259,9 @@ body:not(.kiosk) tbody tr:hover { background: rgba(37, 99, 235, 0.05); }
 
 .feedback-checkin { background: rgba(22, 163, 74, 0.25); border: 1px solid var(--farbe-erfolg); }
 .feedback-checkout { background: rgba(37, 99, 235, 0.25); border: 1px solid var(--farbe-akzent); }
+/* Abgelehnte Karte (passt auf kein hinterlegtes UID-Muster) -- deutlich als Hinweis
+   erkennbar, aber nicht als Fehler des Systems. */
+.feedback-rejected { background: rgba(220, 38, 38, 0.25); border: 1px solid var(--farbe-warnung); }
 
 /* Idle-Zustand: bewusst minimal gehalten (nur das Icon) -- der Platz gehört der
    Raum-Übersicht darunter, nicht dem "bereit zum Einlesen"-Hinweis. */
@@ -417,7 +420,7 @@ body:not(.kiosk) tbody tr:hover { background: rgba(37, 99, 235, 0.05); }
 
 form.formular { display: flex; flex-direction: column; gap: 0.7rem; max-width: 420px; }
 form.formular label { font-size: 0.9rem; font-weight: 600; }
-form.formular input, form.formular select {
+form.formular input, form.formular select, form.formular textarea {
   padding: 0.5rem 0.6rem;
   border: 1px solid var(--admin-rand);
   border-radius: var(--radius-sm);
@@ -425,6 +428,10 @@ form.formular input, form.formular select {
   background: var(--admin-input-bg);
   color: var(--admin-text);
 }
+/* Muster-Liste der zugelassenen Karten-UIDs: monospace, damit sich die Platzhalter
+   (12xxxxxxxxx89) stellengenau abzählen lassen. */
+form.formular textarea { font-family: ui-monospace, "Consolas", monospace; resize: vertical; }
+
 body.kiosk form.formular input, body.kiosk form.formular select {
   background: #f8fafc;
   color: var(--farbe-text);

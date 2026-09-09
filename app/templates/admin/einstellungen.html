@@ -9,8 +9,9 @@
     Person nach der hier eingestellten Anzahl Stunden automatisch aus (Mitarbeiter wie
     externe Besucher). Der Eintrag im Log ist als <code>automatisch</code> gekennzeichnet.
   </p>
-  {% if erfolg %}<p class="hinweis-erfolg">Gespeichert.</p>{% endif %}
-  {% if fehler %}<p class="hinweis-fehler">{{ fehler }}</p>{% endif %}
+  {# bereich = Karte, zu der die Meldung gehört (siehe app/routers/admin.py) #}
+  {% if erfolg and bereich == "auto_checkout" %}<p class="hinweis-erfolg">Gespeichert.</p>{% endif %}
+  {% if fehler and bereich == "auto_checkout" %}<p class="hinweis-fehler">{{ fehler }}</p>{% endif %}
   <form class="formular" method="post" action="/admin/einstellungen">
     <label for="auto_checkout_stunden">Automatisch auschecken nach (Stunden)</label>
     <input
@@ -34,6 +35,8 @@
     nächsten Lauf des Wartungsjobs endgültig gelöscht (hart, nicht rückholbar). Besucherprofile,
     zu denen danach kein Log-Eintrag mehr existiert, werden ebenfalls entfernt.
   </p>
+  {% if erfolg and bereich == "aufbewahrung" %}<p class="hinweis-erfolg">Gespeichert.</p>{% endif %}
+  {% if fehler and bereich == "aufbewahrung" %}<p class="hinweis-fehler">{{ fehler }}</p>{% endif %}
   <form class="formular" method="post" action="/admin/einstellungen/aufbewahrung">
     <label for="aufbewahrung_tage">Log-Einträge aufbewahren für (Tage)</label>
     <input
@@ -56,11 +59,51 @@
     einem vorhandenen Profil suchen können, bevor sie ggf. ein neues anlegen. Deaktiviert
     zeigt die Seite direkt nur das Formular zum Neuanlegen.
   </p>
+  {% if erfolg and bereich == "besucher_suche" %}<p class="hinweis-erfolg">Gespeichert.</p>{% endif %}
   <form class="formular" method="post" action="/admin/einstellungen/besucher-suche">
     <label style="display:flex; align-items:center; gap:0.5rem; font-weight:normal;">
       <input type="checkbox" id="besucher_suche_aktiv" name="aktiv" {{ "checked" if besucher_suche_aktiv else "" }}>
       Suche nach vorhandenen Besucherprofilen anzeigen
     </label>
+    <button type="submit" class="button button-primary">Speichern</button>
+  </form>
+</div>
+
+<div class="karte">
+  <h2>Zugelassene Karten-UIDs</h2>
+  <p>
+    Legt fest, welche Karten sich am Reader ein- und auschecken dürfen — z. B. nur die
+    eigenen Dienstausweise. Eine Karte, deren UID auf keines der Muster passt, wird
+    <strong>nicht</strong> protokolliert; der Kiosk zeigt stattdessen
+    „Bitte Dienstausweis vorhalten“.
+  </p>
+  <p>
+    Ein Muster pro Zeile. Erlaubte Platzhalter:
+    <code>x</code> (oder <code>?</code>) für genau ein Zeichen, <code>*</code> für
+    beliebig viele. Beispiel: <code>12xxxxxxxxx89</code> lässt alle 13-stelligen UIDs zu,
+    die mit <code>12</code> beginnen und auf <code>89</code> enden; <code>04*</code> alle
+    UIDs, die mit <code>04</code> beginnen.
+    <strong>Leeres Feld = keine Einschränkung</strong> (jede Karte darf einchecken).
+  </p>
+  {% if erfolg and bereich == "uid_muster" %}<p class="hinweis-erfolg">Gespeichert.</p>{% endif %}
+  {% if fehler and bereich == "uid_muster" %}<p class="hinweis-fehler">{{ fehler }}</p>{% endif %}
+  {% if uid_test %}
+    {% if uid_test.erlaubt %}
+      <p class="hinweis-erfolg">Test: UID <code>{{ uid_test.uid }}</code> ist zugelassen.</p>
+    {% else %}
+      <p class="hinweis-fehler">Test: UID <code>{{ uid_test.uid }}</code> würde abgelehnt.</p>
+    {% endif %}
+  {% endif %}
+  <form class="formular" method="post" action="/admin/einstellungen/uid-muster">
+    <label for="uid_muster">Muster für zugelassene UIDs (eines pro Zeile)</label>
+    <textarea id="uid_muster" name="uid_muster" rows="5" spellcheck="false"
+      placeholder="12xxxxxxxxx89">{{ uid_muster_text }}</textarea>
+    <label for="test_uid">Test-UID (optional)</label>
+    <input id="test_uid" name="test_uid" type="text" autocomplete="off" placeholder="z. B. 12ABCDEF12389">
+    <p class="hinweis-klein" style="color:var(--admin-text-schwach);">
+      Wird nach dem Speichern nur geprüft und angezeigt, nicht gespeichert — so lässt sich
+      ein Muster kontrollieren, ohne mit der Karte zum Kiosk zu laufen.
+    </p>
     <button type="submit" class="button button-primary">Speichern</button>
   </form>
 </div>
