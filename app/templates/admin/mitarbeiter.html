@@ -19,7 +19,8 @@
 {% if unbekannte_karten %}
 <div class="karte">
   <h2>Unbekannte Karten am Reader</h2>
-  <p>Diese UIDs wurden gescannt, sind aber keinem Eintrag zugeordnet.</p>
+  <p>Diese UIDs wurden gescannt, sind aber keinem Eintrag zugeordnet. Neuen Dienstausweis
+  ggf. oben mit der UID anlegen (siehe "Neuen Dienstausweis anlegen").</p>
   <table>
     <thead><tr><th>UID</th><th>Zuletzt gesehen</th><th>Anzahl</th><th>Aktion</th></tr></thead>
     <tbody>
@@ -29,17 +30,6 @@
         <td>{{ u.zuletzt_gesehen.strftime("%d.%m.%Y %H:%M") }}</td>
         <td>{{ u.anzahl }}</td>
         <td>
-          <form method="post" action="/admin/unbekannte-karten/{{ u.uid }}/zuordnen" class="formular-inline">
-            <select name="employee_id" required>
-              <option value="" disabled selected>Bestehendem Eintrag zuordnen (Kartentausch) …</option>
-              {% for m in mitarbeiter %}
-              <option value="{{ m.id }}">
-                Eintrag seit {{ m.erstellt_am.strftime("%d.%m.%Y") }} ({{ "aktiv" if m.aktiv else "inaktiv" }}{% if m.rfid_uid %}, Karte wird ersetzt{% endif %})
-              </option>
-              {% endfor %}
-            </select>
-            <button type="submit" class="button button-primary">Zuordnen</button>
-          </form>
           <form method="post" action="/admin/unbekannte-karten/{{ u.uid }}/loeschen" class="formular-inline">
             <button type="submit" class="button button-sekundaer">Verwerfen</button>
           </form>

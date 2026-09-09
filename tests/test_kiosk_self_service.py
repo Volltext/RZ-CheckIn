@@ -1,14 +1,9 @@
-"""Kiosk-Selbstbedienung: manuelles Auschecken für Externe, Registrierung neuer
-Dienstausweise mit noch unbekannter Karte (ohne Namenseingabe -- siehe
-app/models.py::Employee)."""
+"""Kiosk-Selbstbedienung: manuelles Auschecken für Externe. Für Mitarbeiter gibt es am
+Kiosk bewusst keine Selbstregistrierung -- neue Dienstausweise werden ausschließlich über
+den Admin-Bereich angelegt (siehe app/routers/admin.py::mitarbeiter_anlegen)."""
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
-
-from sqlalchemy import select
-
-from app.models import CheckLog, Employee, UnknownScan
 from app.services.attendance import checkin_visitor, is_present, record_rfid_scan
 from tests.factories import make_employee, make_visitor
 
@@ -40,36 +35,8 @@ def test_kiosk_has_no_manual_checkout_route_for_employees(client, db):
     assert is_present(db, "employee", employee.id) is True
 
 
-def test_card_registration_creates_employee_without_name_and_checks_in(client, db):
-    db.add(UnknownScan(uid="AABBCC99", anzahl=2, zuletzt_gesehen=datetime.now(timezone.utc)))
-    db.commit()
-
-    response = client.post(
-        "/kiosk/mitarbeiter/registrieren",
-        data={"rfid_uid": "aabbcc99"},
-        follow_redirects=False,
-    )
-    assert response.status_code == 303
-
-    employee = db.scalar(select(Employee).where(Employee.rfid_uid == "AABBCC99"))
-    assert employee is not None
-    assert not hasattr(employee, "vorname")
-    assert is_present(db, "employee", employee.id) is True
-
-    # Der Eintrag in unknown_scans wurde aufgeräumt.
-    assert db.get(UnknownScan, "AABBCC99") is None
-
-
-def test_card_registration_conflict_does_not_duplicate(client, db):
-    existing = make_employee(db, rfid_uid="AABBCC55")
-
-    response = client.post(
-        "/kiosk/mitarbeiter/registrieren",
-        data={"rfid_uid": "AABBCC55"},
-        follow_redirects=False,
-    )
-    assert response.status_code == 303
-
-    employees_with_uid = list(db.scalars(select(Employee).where(Employee.rfid_uid == "AABBCC55")))
-    assert len(employees_with_uid) == 1
-    assert employees_with_uid[0].id == existing.id
+def test_kiosk_has_no_self_registration_route_for_unknown_cards(client, db):
+    # Neue Dienstausweise entstehen ausschließlich über den Admin-Bereich (Datenschutz --
+    # niemand soll unbemerkt am Kiosk einen Eintrag für sich selbst anlegen können).
+    response = client.post("/kiosk/mitarbeiter/registrieren", data={"rfid_uid": "AABBCC99"})
+    assert response.status_code == 404

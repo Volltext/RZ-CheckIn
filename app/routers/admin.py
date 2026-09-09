@@ -197,27 +197,6 @@ def mitarbeiter_aktiv_setzen(
     return RedirectResponse(url="/admin/mitarbeiter", status_code=303)
 
 
-@router.post("/unbekannte-karten/{uid}/zuordnen")
-def unbekannte_karte_zuordnen(
-    uid: str,
-    employee_id: str = Form(...),
-    db: Session = Depends(get_db),
-    admin: AdminUser = Depends(get_current_admin),
-) -> RedirectResponse:
-    employee = db.get(Employee, employee_id)
-    if employee is None:
-        raise HTTPException(status_code=404, detail="Mitarbeiter nicht gefunden")
-    bestehend = db.scalar(select(Employee).where(Employee.rfid_uid == uid))
-    if bestehend is not None and bestehend.id != employee.id:
-        raise HTTPException(status_code=409, detail="Karte ist bereits einem anderen Mitarbeiter zugeordnet")
-    employee.rfid_uid = uid
-    unknown = db.get(UnknownScan, uid)
-    if unknown is not None:
-        db.delete(unknown)
-    db.commit()
-    return RedirectResponse(url="/admin/mitarbeiter", status_code=303)
-
-
 @router.post("/unbekannte-karten/{uid}/loeschen")
 def unbekannte_karte_loeschen(
     uid: str, db: Session = Depends(get_db), admin: AdminUser = Depends(get_current_admin)

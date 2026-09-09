@@ -164,6 +164,7 @@ def test_besucher_einchecken_stores_selected_room(client, db):
 
 def test_rfid_checkin_via_api_tags_checklog_with_agent_room(client, db):
     _, api_key = make_agent(db, agent_id="kiosk1", bezeichnung="Serverraum A")
+    make_employee(db, rfid_uid="AABBCCDD")
 
     response = client.post(
         "/api/checkin/rfid",
@@ -171,28 +172,9 @@ def test_rfid_checkin_via_api_tags_checklog_with_agent_room(client, db):
         headers={"X-Agent-Key": api_key},
     )
     assert response.status_code == 200
-    assert response.json()["result"] == "unknown_card"
+    assert response.json()["result"] == "checkin"
 
-    # Danach direkt am Kiosk registrieren -- die Raumzuordnung kommt aus dem Scan-Event
-    # (siehe app/services/feedback.py::ScanFeedbackEvent.agent_id).
-    reg = client.post(
-        "/kiosk/mitarbeiter/registrieren",
-        data={"rfid_uid": "AABBCCDD", "raum": "kiosk1"},
-        follow_redirects=False,
-    )
-    assert reg.status_code == 303
-
+    # Der Raum kommt über den authentifizierten Agenten, nicht aus dem Payload (siehe
+    # app/routers/api_agent.py::checkin_rfid).
     entry = db.query(CheckLog).filter_by(person_type="employee", action="checkin").one()
     assert entry.raum == "kiosk1"
-
-
-def test_mitarbeiter_registrieren_with_unknown_room_is_ignored(client, db):
-    response = client.post(
-        "/kiosk/mitarbeiter/registrieren",
-        data={"rfid_uid": "AABBCCDD", "raum": "kein-agent"},
-        follow_redirects=False,
-    )
-    assert response.status_code == 303
-
-    entry = db.query(CheckLog).filter_by(person_type="employee", action="checkin").one()
-    assert entry.raum is None

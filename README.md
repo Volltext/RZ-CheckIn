@@ -223,9 +223,10 @@ darunter eine Split-Ansicht mit einer Spalte je Technikraum:
   - Personen ohne (mehr) gültige Raumzuordnung (z. B. Alteinträge von vor Einführung
     dieser Funktion) landen in einem zusätzlichen Kärtchen "Ohne Raumzuordnung".
 - **Neue Dienstausweise**: hält jemand eine noch unbekannte Karte an den Reader, zeigt
-  der Scan-Bereich statt einer Fehlermeldung einen Hinweis mit einem
-  "Registrieren"-Button — ein Klick legt die Kartennummer an und checkt sofort ein, ganz
-  ohne Umweg über den Admin-Bereich und **ohne Namenseingabe**.
+  der Scan-Bereich statt einer Fehlermeldung nur einen Hinweis dazu — eine
+  Selbstregistrierung am Kiosk gibt es bewusst nicht. Neue Dienstausweise legt
+  ausschließlich der Admin-Bereich an (`/admin/mitarbeiter`), die unbekannte UID landet
+  bis dahin in der dortigen Liste "unbekannte Karten".
 - **Externe Besucher einchecken**: eigene, für Touch-Terminals optimierte Maske
   (`/kiosk/besucher`) mit Suche nach vorhandenem Profil (im Admin-Bereich unter
   "Einstellungen" an-/abschaltbar) und Formular für ein neues Profil; der
@@ -519,15 +520,13 @@ Siehe `docs/PRTG.md`.
 - Rein internes Tool: kein Internetzugang für Server oder Kiosk-PC nötig, Betrieb im
   internen VLAN (siehe "Deployment ohne Internetzugang auf dem Server" oben).
 - Kiosk-Oberfläche (`/`, `/kiosk/...`) ist bewusst ohne Login — sie steht am Kiosk-PC vor
-  Ort und ihre Nutzung (Live-Übersicht einsehen, Besucher ein-/auschecken, neue
-  Dienstausweise registrieren) ist nicht schützenswert im gleichen Sinn wie der
-  Admin-Bereich.
-- **Registrierung neuer Dienstausweise** (unbekannte Karte → per Knopfdruck am Kiosk
-  anlegen, siehe oben) folgt demselben Vertrauensmodell: wer physisch bis zum Reader
-  vordringt, darf ohnehin ins Rechenzentrum. Der Zutritt selbst wird weiterhin vom
-  bestehenden Zutrittssystem kontrolliert (Konzept: "steuert keine Türen") — die
-  Registrierung entscheidet nicht, wer reindarf, sondern nur, ab wann eine ohnehin
-  gültige Karte im Protokoll erscheint. Es wird dabei bewusst kein Name erfasst.
+  Ort und ihre Nutzung (Live-Übersicht einsehen, Besucher ein-/auschecken) ist nicht
+  schützenswert im gleichen Sinn wie der Admin-Bereich.
+- **Neue Dienstausweise** entstehen ausschließlich im Login-geschützten Admin-Bereich
+  (`/admin/mitarbeiter`) — eine Selbstregistrierung am Kiosk gibt es bewusst nicht, damit
+  eine UID nicht ohne Admin-Aktion einem Mitarbeiter zugeordnet werden kann. Eine
+  unbekannte Karte wird nur geloggt (`unknown_scans`) und im Admin-Bereich zur weiteren
+  Zuordnung angezeigt.
 - Admin-Bereich (`/admin/...`) ist Login-geschützt (Argon2-Passworthash, signierte
   Session-Cookies) und kann zusätzlich per `RZ_ADMIN_IP_ALLOWLIST` auf bestimmte
   Quell-IPs eingeschränkt werden.

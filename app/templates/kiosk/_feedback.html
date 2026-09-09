@@ -19,13 +19,8 @@
   </div>
 {% elif event and event.result == "unknown_card" %}
   <div class="feedback-registrierung">
-    <p><strong>Karte nicht erkannt.</strong> Neue Dienstausweiskarte? Es wird ausschließlich
-    die Kartennummer gespeichert, kein Name.</p>
-    <form method="post" action="/kiosk/mitarbeiter/registrieren" class="formular">
-      <input type="hidden" name="rfid_uid" value="{{ event.uid }}">
-      <input type="hidden" name="raum" value="{{ event.agent_id or '' }}">
-      <button type="submit" class="button button-erfolg" autofocus>Karte registrieren &amp; einchecken</button>
-    </form>
+    <p><strong>Karte nicht erkannt.</strong> Neue Dienstausweise werden ausschließlich über
+    den Admin-Bereich angelegt.</p>
   </div>
 {% else %}
   <div class="feedback-idle" title="Bereit zum Einlesen">

@@ -272,7 +272,8 @@ body:not(.kiosk) tbody tr:hover { background: rgba(37, 99, 235, 0.05); }
 .scan-icon { width: 32px; height: 32px; color: var(--farbe-text-gedaempft); }
 .hinweis-klein { font-size: 0.8rem; color: var(--farbe-text-gedaempft); margin: 0; }
 
-/* Selbstregistrierung: unbekannte Karte -> Name eintragen. */
+/* Hinweis am Kiosk: unbekannte Karte, keine Selbstregistrierung (siehe
+   app/routers/kiosk.py). */
 .feedback-registrierung {
   width: 100%;
   background: rgba(37, 99, 235, 0.12);
@@ -280,8 +281,7 @@ body:not(.kiosk) tbody tr:hover { background: rgba(37, 99, 235, 0.05); }
   border-radius: var(--radius-md);
   padding: 1.2rem 1.4rem;
 }
-.feedback-registrierung p { margin: 0 0 0.8rem; }
-.feedback-registrierung .formular { max-width: none; }
+.feedback-registrierung p { margin: 0; }
 
 /* Live-Übersicht: Mitarbeiter (intern) werden nur als Anzahl + grüne Punkte gezeigt,
    nie mit Namen (siehe app/services/attendance.py::PresentPerson). */
