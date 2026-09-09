@@ -49,12 +49,18 @@ $pipArgs += @("-r", "requirements.txt", "-r", "requirements-tray.txt")
 & $pip @pipArgs
 
 Write-Host "Baue RZ-CheckIn-Agent.exe ..."
+# nfcpy laedt seine Reader-/Tag-Treiber (nfc.clf.acr122, nfc.clf.pn532, nfc.tag.tt2 usw.)
+# je nach erkanntem Geraet bzw. Kartentyp per importlib.import_module mit einem zur
+# Laufzeit gebauten Modulnamen -- PyInstallers statische Analyse sieht solche Strings
+# nicht und wuerde die Module sonst weglassen (ModuleNotFoundError erst beim Kiosk-PC).
+# --collect-submodules nimmt deshalb das komplette nfc-Paket mit.
 & $pyinstaller `
     --noconfirm `
     --onefile `
     --windowed `
     --name "RZ-CheckIn-Agent" `
     --paths . `
+    --collect-submodules nfc `
     tray_app.py
 
 Write-Host ""

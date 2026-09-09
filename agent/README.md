@@ -132,6 +132,12 @@ Ergebnis: `agent\dist\RZ-CheckIn-Agent.exe`. Diese eine Datei auf den/die Kiosk-
 kopieren (z.B. per USB-Stick oder internem Fileshare) — dort ist danach nichts weiter zu
 installieren.
 
+**Fehlersuche**: Meldet die .exe auf dem Kiosk-PC `ModuleNotFoundError: No module named
+'nfc.clf.<treiber>'` (z.B. `nfc.clf.acr122`) oder `nfc.tag.<typ>`, wurde mit einer älteren
+Version von `build_exe.ps1` ohne `--collect-submodules nfc` gebaut — nfcpy lädt seine
+Reader-/Tag-Treiber erst zur Laufzeit passend zum erkannten Gerät bzw. Kartentyp nach, das
+sieht PyInstaller beim Bauen nicht. Mit aktuellem `build_exe.ps1` neu bauen.
+
 ### 5.2 Autostart einrichten
 
 Einfachste Variante: eine Verknüpfung zur `.exe` in den Autostart-Ordner des
