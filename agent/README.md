@@ -1,4 +1,4 @@
-# Reader-Agent — Installation auf dem Windows-Kiosk-PC
+# Reader-Agent — Installation auf dem Kiosk-PC (Windows & Linux)
 
 Der Reader-Agent verbindet den USB-RFID-Leser mit dem RZ-CheckIn-Backend: gelesene
 Karten-UIDs → `POST /api/checkin/rfid`, dazu ein regelmäßiger Heartbeat für die
@@ -8,12 +8,30 @@ Kiosk-PC, weil er auf den lokal angeschlossenen USB-Leser zugreifen muss.
 Es gibt zwei Varianten, die dieselbe Kernlogik (`reader_agent.py`) nutzen:
 
 - **Kommandozeile** (`reader_agent.py`): ein einzelnes Python-Skript, klassisch als
-  Windows-Dienst betrieben (nssm) oder für Linux/Test-Aufbauten. Siehe Abschnitt 4.
-- **Systray-App** (`tray_app.py`, bzw. als fertige `RZ-CheckIn-Agent.exe`): Icon im
-  Infobereich (grün = Verbindung ok, grau = Verbindungsstörung), Rechtsklick-Menü und ein
-  kleines Einstellungen-Fenster zum Bearbeiten von Server-URL/Agent-ID/API-Key/Reader,
-  ganz ohne Texteditor/Konsole. Gedacht für den normalen Windows-Autostart. Siehe
-  Abschnitt 5.
+  Windows-Dienst betrieben (nssm, Abschnitt 4) oder als systemd-Dienst unter Linux
+  (Abschnitt 9).
+- **GUI-Variante** (`tray_app.py`, als fertige Programmdatei `RZ-CheckIn-Agent.exe` bzw.
+  `rz-checkin-agent`): Symbol im Infobereich/Systray (grün = Verbindung ok, grau =
+  Verbindungsstörung), Kontextmenü und ein kleines Einstellungen-Fenster zum Bearbeiten
+  von Server-URL/Agent-ID/API-Key/Reader, ganz ohne Texteditor/Konsole. Gedacht für den
+  normalen Autostart des Kiosk-Benutzers. Siehe Abschnitt 5 (Windows) und 9 (Linux).
+
+**Windows oder Linux?** Beide Plattformen sind gleichwertig unterstützt und nutzen
+dieselben Quelldateien; gebaut wird nur jeweils auf der Zielplattform (PyInstaller kann
+nicht über Plattformgrenzen hinweg bauen).
+
+| | Windows | Linux |
+|---|---|---|
+| Fertige Programmdatei | `RZ-CheckIn-Agent.exe` (`build_exe.ps1`) | `rz-checkin-agent` (`build_linux.sh`) |
+| Treiber/Zugriff auf den Leser | Zadig → libusbK (Abschnitt 1) | udev-Regel + Kernel-Modul-Blacklist (Abschnitt 9.2, macht `linux/install.sh`) |
+| Autostart mit Oberfläche | Autostart-Ordner / Aufgabenplanung | `~/.config/autostart/` (macht `linux/install.sh`) |
+| Dienst ohne Oberfläche | nssm (Abschnitt 4) | systemd (Abschnitt 9.5) |
+| Einrichtung | Datei kopieren, starten, Einstellungen ausfüllen | `sudo ./linux/install.sh`, starten, Einstellungen ausfüllen |
+
+Die GUI-Variante erkennt beim Start selbst, was die Umgebung hergibt: Systray-Symbol,
+ersatzweise ein kleines Fenster (Desktops ohne Infobereich, z.B. GNOME/Wayland), und
+ohne grafische Oberfläche läuft sie ohne Fenster einfach weiter (`--headless`, für den
+systemd-Dienst). Details in Abschnitt 9.1.
 
 Referenzhardware ist der **NFC-Kartenleser USB ACR122U-A9 (RFID)**.
 
@@ -168,9 +186,10 @@ Internetzugriff hat.
 
 ## 3. Konfiguration
 
-1. `agent.ini.example` nach `C:\rz-checkin-agent\agent.ini` kopieren (Kommandozeile)
-   bzw. beim ersten Start der `RZ-CheckIn-Agent.exe` öffnet sich automatisch das
-   Einstellungen-Fenster, wenn noch keine `agent.ini` existiert.
+1. `agent.ini.example` nach `C:\rz-checkin-agent\agent.ini` kopieren (Kommandozeile;
+   unter Linux nach `~/.config/rz-checkin-agent/agent.ini`, siehe Abschnitt 8) bzw. beim
+   ersten Start der GUI-Variante öffnet sich automatisch das Einstellungen-Fenster, wenn
+   noch keine `agent.ini` existiert.
 2. Im Admin-Bereich des Backends (`/admin/agenten`) einen neuen Agenten anlegen — der
    API-Key wird dabei **einmalig** angezeigt.
 3. `server_url`, `agent_id`, `api_key` und `reader` (`usb:072f:2200` für den ACR122U-A9)
@@ -204,13 +223,13 @@ nssm start RZCheckinAgent
 Logs landen zusätzlich zur Konsole in der Datei aus `log_path` (Standard:
 `reader_agent.log` im Arbeitsverzeichnis).
 
-## 5. Systray-App: Installation als .exe
+## 5. GUI-Variante unter Windows: Installation als .exe
 
-Die Systray-App (`tray_app.py`) zeigt ein Icon im Infobereich, bietet ein
+Die GUI-Variante (`tray_app.py`) zeigt ein Icon im Infobereich, bietet ein
 Einstellungen-Fenster (Server-URL/Agent-ID/API-Key/Reader, schreibt `agent.ini`) und
 läuft im Hintergrund weiter, solange Windows läuft. Fertig als `RZ-CheckIn-Agent.exe`
 gebaut, braucht der Kiosk-PC **weder Python noch irgendeine Installation** — eine Datei
-kopieren reicht.
+kopieren reicht. Das Linux-Gegenstück steht in Abschnitt 9.
 
 ### 5.1 .exe bauen (auf einem Build-Rechner, einmalig)
 
@@ -241,8 +260,8 @@ Kiosk-Benutzerkontos legen (`Win+R` → `shell:startup`). Für mehr Kontrolle
 (`taskschd.msc`) einen Trigger "Bei Anmeldung" mit Aktion `RZ-CheckIn-Agent.exe`
 anlegen.
 
-Bei jedem Start prüft die App, ob im Arbeitsverzeichnis eine `agent.ini` existiert —
-falls nicht, öffnet sich automatisch das Einstellungen-Fenster.
+Bei jedem Start sucht die App ihre `agent.ini` (Suchreihenfolge siehe Abschnitt 8) —
+findet sie keine, öffnet sich automatisch das Einstellungen-Fenster.
 
 ## 6. Air-Gapped: Wheelhouse vorbereiten
 
@@ -280,6 +299,10 @@ pip install --no-index --find-links C:\rz-checkin-wheelhouse -r requirements.txt
 Die Wheelhouse muss nur einmal pro Projektversion neu vorbereitet werden (wenn sich
 `requirements.txt`/`requirements-tray.txt` ändern) — nicht bei jedem Build.
 
+Unter Linux läuft derselbe Ablauf mit `prepare_wheelhouse.sh` und
+`build_linux.sh --wheelhouse <ordner>` (siehe Abschnitt 9.3). Wheelhouse und Build-Rechner
+müssen dabei dieselbe Distribution/Architektur und Python-Version haben.
+
 ## 7. Verhalten bei Verbindungsabbruch
 
 Kann ein Scan nicht sofort an den Server übermittelt werden (Netzwerkstörung, Server
@@ -287,25 +310,207 @@ kurzzeitig nicht erreichbar), landet er in der JSONL-Datei aus `spool_path`
 (Standard: `agent_spool.jsonl`) und wird mit exponentiellem Backoff (max. alle 5 Minuten)
 erneut versucht — mit dem ursprünglichen Scan-Zeitpunkt, damit das Protokoll zeitlich
 korrekt bleibt. Der Reader selbst versucht bei einem Aussetzer (Kabel ab, PC-Standby)
-alle 5 Sekunden neu zu verbinden. Die Systray-App zeigt eine Verbindungsstörung am
-grauen (statt grünen) Icon.
+alle 5 Sekunden neu zu verbinden. Die GUI-Variante zeigt eine Verbindungsstörung am
+grauen (statt grünen) Symbol bzw. in der Statuszeile ihres Fensters.
 
-## 8. Alternative: Linux/systemd
+## 8. Wo liegen Konfiguration, Log und Offline-Puffer?
 
-Für einen Test- oder Linux-Kiosk-Aufbau reicht eine einfache systemd-Unit (nur für die
-Kommandozeilen-Variante, die Systray-App ist Windows-spezifisch):
+Der Agent sucht seine `agent.ini` beim Start an mehreren Stellen und nimmt die erste
+gefundene (`agent/agent_paths.py`). Ein ausdrücklich angegebener Pfad gewinnt immer:
+
+1. `--config <pfad>` auf der Kommandozeile
+2. Umgebungsvariable `RZ_AGENT_CONFIG` (nutzt der systemd-Dienst)
+3. `agent.ini` im **Arbeitsverzeichnis**
+4. `agent.ini` neben der **Programmdatei** (.exe bzw. Binärdatei)
+5. benutzerbezogen: `%APPDATA%\RZ-CheckIn-Agent\agent.ini` (Windows) bzw.
+   `~/.config/rz-checkin-agent/agent.ini` (Linux)
+6. nur Linux: `/etc/rz-checkin-agent/agent.ini` (systemweit, für den Dienst)
+
+Findet er keine, legt das Einstellungen-Fenster beim Speichern eine neue an — unter
+Windows neben der Programmdatei (der gewohnte "ein Ordner für alles"-Aufbau), unter
+Linux unter `~/.config/rz-checkin-agent/` (dort mit Dateirechten `0600`, weil der
+API-Key im Klartext darin steht).
+
+`spool_path` und `log_path` sind im Auslieferungszustand relative Namen. Sie werden
+relativ zum **Ordner der `agent.ini`** angelegt; ist der nicht beschreibbar (typisch für
+`/etc/rz-checkin-agent`), weicht der Agent auf `~/.local/state/rz-checkin-agent/` aus
+bzw. beim systemd-Dienst auf `/var/lib/rz-checkin-agent/` (`StateDirectory`). Absolute
+Pfade in der `agent.ini` werden unverändert übernommen.
+
+Für bestehende Windows-Installationen ändert sich damit nichts: liegt die `agent.ini`
+wie bisher neben der .exe, wird genau sie gefunden und Log/Puffer landen wie gehabt
+daneben.
+
+## 9. Linux-Kiosk-PC
+
+Unter Linux gibt es dieselbe GUI-Variante wie unter Windows — eine einzelne
+Programmdatei (`rz-checkin-agent`), Symbol im Systray bzw. ein kleines Fenster, und die
+Einstellungen werden dort ausgefüllt statt in einem Texteditor. Der Unterschied
+gegenüber Windows liegt nicht in der App, sondern im Drumherum: Zugriffsrechte auf das
+USB-Gerät, ein Kernel-Treiber, der dem Leser im Weg steht, und der Autostart. Genau das
+erledigt `agent/linux/install.sh` in einem Rutsch.
+
+### 9.1 Drei Betriebsarten, automatisch gewählt
+
+Beim Start prüft die App die Umgebung (`tray_app.choose_ui_mode`) und entscheidet:
+
+| Betriebsart | Wann | Was man sieht |
+|---|---|---|
+| **tray** | Desktop mit Infobereich: Windows, KDE, XFCE, MATE, Cinnamon, GNOME **mit** AppIndicator-Erweiterung | Symbol im Systray, Kontextmenü mit "Einstellungen …"/"Beenden" |
+| **window** | Grafische Oberfläche, aber kein nutzbarer Systray (typisch GNOME/Wayland) | Kleines Fenster mit Statusampel, den vier Einstellungsfeldern und "Speichern & neu starten"/"Beenden" |
+| **headless** | Keine grafische Oberfläche (SSH, systemd-Dienst) oder `--headless` | Kein Fenster, Ausgabe im Log bzw. Journal |
+
+Erzwingen lässt sich das mit `--window` bzw. `--headless`. Es ist also immer dieselbe
+Programmdatei — auf dem Kiosk-Desktop mit Oberfläche, auf einem Rechner ohne Desktop als
+Dienst.
+
+Die App prüft dabei nicht nur, ob die Tray-Bibliothek vorhanden ist, sondern auch, ob im
+X-Server überhaupt ein **Systray-Manager** läuft (`_NET_SYSTEM_TRAY_S0`). Das ist der
+Unterschied zwischen "Symbol wird angezeigt" und "Anwendung läuft unsichtbar im
+Hintergrund": GNOME hat den klassischen Infobereich entfernt, ein dorthin gemeldetes
+Symbol käme nie an. In dem Fall erscheint bewusst das Fenster.
+
+Fehlt unter Linux das Paket für das Einstellungen-Fenster (`python3-tk`, siehe 9.3),
+läuft die App trotzdem — dann eben ohne Fenster; die `agent.ini` wird in dem Fall von
+Hand angelegt (`agent.ini.example` als Vorlage).
+
+### 9.2 Hardware: ACR122U-A9 unter Linux zugänglich machen
+
+Drei Dinge stehen dem direkten USB-Zugriff durch nfcpy typischerweise im Weg:
+
+1. **Zugriffsrechte.** Ohne udev-Regel gehört das USB-Gerät `root`, der Agent bekommt
+   `Permission denied`. Die mitgelieferte Regel
+   (`linux/99-rz-checkin-acr122u.rules`) gibt dem angemeldeten Desktop-Benutzer Zugriff
+   (`TAG+="uaccess"`) und zusätzlich der Gruppe `plugdev` (für den Dienstbetrieb ohne
+   Desktop-Sitzung).
+2. **Der Kernel-NFC-Treiber.** Linux bringt für den PN532/ACR122U einen eigenen Treiber
+   mit (`pn533_usb`). Wird er geladen, belegt er das Gerät exklusiv und nfcpy meldet
+   `Resource busy` bzw. findet es gar nicht mehr. `linux/blacklist-rz-checkin-nfc.conf`
+   setzt `pn533_usb`, `pn533` und `nfc` auf die Blacklist.
+3. **pcscd.** Der PC/SC-Dienst (die Linux-Entsprechung zum Windows-Smartcard-Dienst,
+   siehe Abschnitt 1) greift ebenfalls nach dem ACR122U. Auf einem reinen Kiosk-PC wird
+   er nicht gebraucht: `sudo systemctl disable --now pcscd.socket pcscd.service` bzw.
+   `install.sh --disable-pcscd`.
+
+Ein Zadig-Äquivalent gibt es unter Linux nicht und wird auch nicht gebraucht — libusb
+spricht das Gerät nach diesen drei Schritten direkt an.
+
+*PN532-Board statt ACR122U*: Das meldet sich als USB-Seriell-Gerät, in der `agent.ini`
+dann z.B. `reader = tty:USB0:pn532` (`/dev/ttyUSB0`). Statt der udev-Regel braucht es
+dafür nur die Gruppe `dialout`: `sudo usermod -aG dialout <benutzer>`.
+
+### 9.3 Programmdatei bauen (auf einem Build-Rechner, einmalig)
+
+```bash
+cd agent
+sudo apt install python3-venv python3-tk     # Debian/Ubuntu
+# bzw.: sudo dnf install python3-tkinter
+./build_linux.sh                              # oder: ./build_linux.sh --wheelhouse ~/wheelhouse
+```
+
+Ergebnis: `agent/dist/rz-checkin-agent` — eine einzelne Datei mit Python und allen
+Abhängigkeiten, die auf dem Kiosk-PC ohne Installation und ohne Netzwerkzugriff läuft.
+
+Zwei Stolpersteine, die es unter Windows nicht gibt:
+
+- **glibc-Version.** PyInstaller bündelt Python und die Python-Pakete, aber nicht die
+  C-Bibliotheken des Systems. Eine auf einem neueren System gebaute Datei meldet auf
+  einem älteren `version 'GLIBC_2.xx' not found`. Deshalb auf der **ältesten**
+  eingesetzten Distribution bauen — die daraus entstehende Datei läuft dann auch auf
+  allen neueren.
+- **tkinter zur Bauzeit.** Fehlt `python3-tk` auf dem Build-Rechner, fehlt später das
+  Einstellungen-Fenster in der fertigen Datei (der Agent selbst läuft trotzdem).
+  `build_linux.sh` warnt in dem Fall.
+
+Die für den USB-Zugriff nötige `libusb-1.0` legt `build_linux.sh` mit in die
+Programmdatei (aus dem PyPI-Paket `libusb`, passend zur Architektur des Build-Rechners) —
+auf dem Kiosk-PC muss dafür also nichts installiert werden. Nur wer den Agenten direkt
+aus den Quellen betreibt (Abschnitt 9.6), braucht dort das Systempaket `libusb-1.0-0`.
+
+Für den air-gapped Fall gibt es `./prepare_wheelhouse.sh` als Gegenstück zu
+`prepare_wheelhouse.ps1` (siehe Abschnitt 6) — auf einem Rechner mit Internetzugang
+ausführen, Ordner übertragen, dann `./build_linux.sh --wheelhouse <ordner>`. Wheels sind
+plattform- und Python-versionsabhängig: die Wheelhouse muss auf derselben
+Distribution/Architektur und Python-Version heruntergeladen werden wie auf dem
+Build-Rechner.
+
+### 9.4 Installation auf dem Kiosk-PC
+
+Programmdatei und den Ordner `agent/linux/` auf den Kiosk-PC kopieren (USB-Stick,
+internes Fileshare), dann:
+
+```bash
+sudo ./linux/install.sh --binary rz-checkin-agent
+```
+
+Das Skript
+
+1. installiert die Programmdatei nach `/usr/local/bin/rz-checkin-agent`,
+2. installiert die udev-Regel und legt bei Bedarf die Gruppe `plugdev` an,
+3. blacklistet die Kernel-NFC-Module und entlädt sie sofort,
+4. weist auf ein laufendes `pcscd` hin (bzw. deaktiviert es mit `--disable-pcscd`),
+5. trägt den Autostart für den Kiosk-Benutzer ein
+   (`~/.config/autostart/rz-checkin-agent.desktop`) und nimmt ihn in die Gruppe
+   `plugdev` auf.
+
+Danach einmal ab- und wieder anmelden (Gruppenmitgliedschaften greifen erst in einer
+neuen Sitzung), den Agenten starten und im Einstellungen-Fenster Server-URL, Agent-ID,
+API-Key und Reader eintragen — genau wie unter Windows. Ab der nächsten Anmeldung
+startet er automatisch mit.
+
+Rückgängig machen: `sudo ./linux/install.sh --uninstall` (Konfiguration und Log bleiben
+erhalten).
+
+### 9.5 Ohne Oberfläche: als systemd-Dienst
+
+Soll der Agent unabhängig von einer angemeldeten Desktop-Sitzung laufen (Start vor dem
+Login, automatischer Neustart nach Absturz — die Rolle, die unter Windows nssm
+übernimmt):
+
+```bash
+sudo ./linux/install.sh --binary rz-checkin-agent --service
+sudo nano /etc/rz-checkin-agent/agent.ini      # server_url, agent_id, api_key, reader
+sudo systemctl start rz-checkin-agent
+journalctl -u rz-checkin-agent -f
+```
+
+Der Dienst (`linux/rz-checkin-agent.service`) läuft unter einem eigenen, unprivilegierten
+Konto `rz-checkin` in der Gruppe `plugdev`, liest `/etc/rz-checkin-agent/agent.ini` und
+legt Log und Offline-Puffer unter `/var/lib/rz-checkin-agent/` ab.
+
+**Nicht beides gleichzeitig**: Autostart-Eintrag *und* Dienst würden sich um denselben
+Kartenleser streiten. Entweder — oder.
+
+Wer lieber die Kommandozeilen-Variante aus einem Python-Venv betreibt (ohne gebaute
+Programmdatei), ersetzt in der Unit lediglich die `ExecStart`-Zeile:
 
 ```ini
-[Unit]
-Description=RZ-CheckIn Reader-Agent
-After=network-online.target
-
-[Service]
-ExecStart=/opt/rz-checkin-agent/venv/bin/python reader_agent.py --config agent.ini
-WorkingDirectory=/opt/rz-checkin-agent
-Restart=on-failure
-RestartSec=5
-
-[Install]
-WantedBy=multi-user.target
+ExecStart=/opt/rz-checkin-agent/venv/bin/python /opt/rz-checkin-agent/reader_agent.py --config /etc/rz-checkin-agent/agent.ini
 ```
+
+### 9.6 Direkt aus den Quellen starten (Test/Entwicklung)
+
+```bash
+sudo apt install python3-venv python3-tk libusb-1.0-0
+python3 -m venv .venv && . .venv/bin/activate
+pip install -r requirements.txt -r requirements-tray.txt
+python tray_app.py                     # GUI (Systray bzw. Fenster)
+python tray_app.py --headless          # ohne Oberfläche
+python reader_agent.py --simulate-uid AABBCCDD --once   # ohne Hardware
+```
+
+### 9.7 Fehlersuche unter Linux
+
+| Symptom im Log | Ursache / Abhilfe |
+|---|---|
+| `Permission denied` beim Öffnen des Readers | udev-Regel fehlt, oder der Benutzer ist noch nicht in `plugdev` bzw. war seit dem `usermod` nicht neu angemeldet |
+| `Resource busy` / Gerät wird gar nicht gefunden | Kernel-Modul `pn533_usb` geladen (`lsmod \| grep pn533`) oder `pcscd` läuft — siehe 9.2 |
+| Kein Systray-Symbol, stattdessen ein Fenster | Der Desktop hat keinen Infobereich (GNOME/Wayland). Entweder so lassen oder die AppIndicator-Erweiterung installieren; erzwingen lässt sich das Fenster mit `--window` |
+| Weder Symbol noch Fenster | `python3-tk` fehlt (aus den Quellen) bzw. es wurde ohne tkinter gebaut (siehe 9.3); der Agent läuft dann headless weiter |
+| `version 'GLIBC_2.xx' not found` | Die Programmdatei wurde auf einer neueren Distribution gebaut als der Kiosk-PC — auf der älteren neu bauen (siehe 9.3) |
+| `cannot find a suitable libusb-1.0` | Nur beim Betrieb aus den Quellen: `sudo apt install libusb-1.0-0`. Die gebaute Programmdatei bringt die Bibliothek selbst mit (siehe 9.3) |
+| Reader hängt nach USB-Aussetzer | Wie unter Windows: `reset_after_failures` löst einen USB-Reset aus (unter Linux über libusb, ohne Zusatzsoftware). Als `reset_command` bietet sich das De-/Reautorisieren des Ports an — braucht `root`, also nur im Dienstbetrieb sinnvoll: `reset_command = /bin/sh -c 'echo 0 > /sys/bus/usb/devices/1-2/authorized; sleep 2; echo 1 > /sys/bus/usb/devices/1-2/authorized'` (Pfad des Geräts ermitteln mit `grep -l 072f /sys/bus/usb/devices/*/idVendor`) |
+
+Das Log liegt bei der GUI-Variante unter `~/.local/state/rz-checkin-agent/reader_agent.log`
+(bzw. neben der `agent.ini`, siehe Abschnitt 8), beim Dienst zusätzlich im Journal:
+`journalctl -u rz-checkin-agent`.

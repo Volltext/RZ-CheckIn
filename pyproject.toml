@@ -25,9 +25,11 @@ agent = [
     "pyserial>=3.5",
     "requests>=2.32",
 ]
-# Nur für die Systray-/GUI-Variante des Agenten bzw. den .exe-Build daraus, siehe
-# agent/README.md Abschnitt 5. tkinter (Einstellungen-Fenster) ist Teil der
-# Standard-Windows-Python-Installation und taucht hier bewusst nicht auf.
+# Nur für die GUI-Variante des Agenten (Systray/Fenster) bzw. die daraus gebaute
+# Programmdatei, siehe agent/README.md Abschnitt 5 (Windows) und 9 (Linux). tkinter
+# (Einstellungen-Fenster) ist kein PyPI-Paket und taucht hier bewusst nicht auf: unter
+# Windows gehört es zur Standard-Python-Installation, unter Linux kommt es aus dem
+# Distributionspaket python3-tk bzw. python3-tkinter.
 agent-tray = [
     "nfcpy>=1.0.4",
     "pyserial>=3.5",
@@ -35,6 +37,8 @@ agent-tray = [
     "pystray>=0.19",
     "pillow>=10.0",
     "pyinstaller>=6.0",
+    # Systray-Backend unter Linux, siehe agent/requirements-tray.txt.
+    "python-xlib>=0.33; sys_platform == 'linux'",
 ]
 
 [build-system]

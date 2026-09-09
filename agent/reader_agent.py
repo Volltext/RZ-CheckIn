@@ -49,6 +49,8 @@ from typing import Callable
 
 import requests
 
+import agent_paths
+
 LOG = logging.getLogger("reader_agent")
 
 _TRUE_VALUES = {"1", "true", "yes", "on"}
@@ -326,6 +328,19 @@ _ACR122_BEEP_APDU = "FF00400D0402000101"
 _ACR122_LED_DEFAULT_APDU = "FF00400E0400000000"
 
 
+# Unter Linux scheitert das Öffnen des Readers fast nie an der Hardware, sondern an
+# einer von drei Kleinigkeiten: fehlende Zugriffsrechte auf das USB-Gerät, der
+# Kernel-Treiber pn533_usb/nfc hat das Gerät bereits übernommen, oder pcscd hält es
+# belegt. Der Hinweis wird einmal pro Störung ausgegeben, damit im Log gleich steht, wo
+# zu suchen ist (siehe agent/linux/install.sh und agent/README.md, Abschnitt Linux).
+_LINUX_READER_HINT = (
+    "Hinweis (Linux): Zugriff auf den Reader prüfen — udev-Regel installiert "
+    "(agent/linux/99-rz-checkin-acr122u.rules, Benutzer in Gruppe 'plugdev')? "
+    "Kernel-Module pn533_usb/nfc entladen bzw. auf der Blacklist? pcscd gestoppt? "
+    "Siehe agent/README.md, Abschnitt 9."
+)
+
+
 def _parse_usb_vid_pid(reader: str) -> tuple[int, int] | None:
     """Extrahiert Vendor/Product-ID aus einem nfcpy-Pfad wie 'usb:072f:2200'. Liefert
     None für Pfade ohne feste IDs (z.B. nur 'usb', 'tty:...', 'usb:001:027' -- Letzteres
@@ -573,6 +588,8 @@ def run_reader_loop(
 
     def _handle_failure(exc: Exception) -> None:
         nonlocal consecutive_failures
+        if consecutive_failures == 0 and agent_paths.is_linux():
+            LOG.warning(_LINUX_READER_HINT)
         consecutive_failures += 1
         LOG.warning(
             "Reader nicht erreichbar (%s) — neuer Versuch in %ss [%d/%d bis Reset-Versuch]: %s",
@@ -716,7 +733,17 @@ class AgentRuntime:
             self._dispatch_scan(uid, timestamp)
 
     def _reader_loop(self) -> None:
-        run_reader_loop(self.config, self.spool, self._stop_event, on_uid=self._enqueue_scan)
+        try:
+            run_reader_loop(self.config, self.spool, self._stop_event, on_uid=self._enqueue_scan)
+        except ImportError as exc:
+            # Ohne nfcpy gibt es keinen Reader-Zugriff. Heartbeat und Offline-Puffer
+            # laufen trotzdem weiter, damit die Überwachung den Kiosk-PC nicht als
+            # komplett tot meldet -- die Ursache steht dafür deutlich im Log.
+            LOG.error(
+                "nfcpy ist nicht installiert (%s) -- es werden keine Karten gelesen. "
+                "Abhilfe: pip install -r agent/requirements.txt",
+                exc,
+            )
 
     def start(self) -> None:
         if self._threads:
@@ -761,12 +788,22 @@ def _setup_logging(config: AgentConfig, verbose: bool) -> None:
         level=logging.DEBUG if verbose else logging.INFO,
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
         handlers=handlers,
+        # force: die GUI-Variante richtet vor dem Laden der Konfiguration bereits ein
+        # vorläufiges Logging auf stdout ein (sie muss ja auch melden können, dass die
+        # Konfiguration fehlt). Ohne force bliebe basicConfig hier wirkungslos und die
+        # Logdatei aus log_path würde nie geschrieben.
+        force=True,
     )
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--config", default="agent.ini", help="Pfad zur agent.ini")
+    parser.add_argument(
+        "--config",
+        default=None,
+        help="Pfad zur agent.ini (ohne Angabe wird an den üblichen Stellen der Plattform gesucht, "
+        "siehe agent_paths.config_search_paths)",
+    )
     parser.add_argument(
         "--simulate-uid", metavar="UID", help="Statt Hardware: einen Scan mit dieser UID auslösen (Test ohne Reader)"
     )
@@ -774,8 +811,26 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--verbose", action="store_true", help="Debug-Logging")
     args = parser.parse_args(argv)
 
-    config = AgentConfig.from_file(args.config)
+    config_path = agent_paths.resolve_config_path(args.config)
+    try:
+        config = AgentConfig.from_file(str(config_path))
+    except FileNotFoundError:
+        if args.config:
+            print(f"Konfigurationsdatei nicht gefunden: {config_path}", file=sys.stderr)
+        else:
+            # Ohne --config wurde an mehreren Stellen gesucht -- die auch alle nennen,
+            # sonst sucht man auf einem frisch installierten Kiosk-PC im falschen Ordner.
+            gesucht = "\n  ".join(str(path) for path in agent_paths.config_search_paths())
+            print(
+                f"Keine Konfigurationsdatei gefunden. Gesucht wurde in:\n  {gesucht}\n\n"
+                "agent.ini.example an eine dieser Stellen kopieren und anpassen "
+                "(oder --config <pfad> angeben).",
+                file=sys.stderr,
+            )
+        return 2
+    agent_paths.apply_data_paths(config, config_path)
     _setup_logging(config, args.verbose)
+    LOG.info("Konfiguration geladen: %s", config_path)
 
     if args.simulate_uid:
         # Simulation braucht keine Reader-Hardware -- eigener, einfacherer Ablauf statt

@@ -1,7 +1,15 @@
-; Konfiguration des Reader-Agenten. Nach Windows kopieren als agent.ini und anpassen.
+; Konfiguration des Reader-Agenten. Als agent.ini auf den Kiosk-PC kopieren und
+; anpassen -- oder einfacher: die GUI-Variante starten und die vier Kernwerte im
+; Einstellungen-Fenster eintragen, sie schreibt genau diese Datei.
+;
+; Wo die Datei liegen muss (Suchreihenfolge in agent/README.md Abschnitt 8):
+;   Windows: neben der RZ-CheckIn-Agent.exe, z.B. C:\rz-checkin-agent\agent.ini
+;   Linux:   ~/.config/rz-checkin-agent/agent.ini  (Desktop-/Autostart-Betrieb)
+;            /etc/rz-checkin-agent/agent.ini       (systemd-Dienst)
+;
 ; Jeder Wert kann auch per Umgebungsvariable RZ_AGENT_<NAME IN GROSSBUCHSTABEN>
 ; überschrieben werden, z.B. RZ_AGENT_API_KEY (praktisch, um den Key nicht im Klartext
-; in der Datei abzulegen).
+; in der Datei abzulegen). RZ_AGENT_CONFIG legt den Pfad dieser Datei selbst fest.
 
 [agent]
 ; URL des RZ-CheckIn-Backends (interner Server, siehe README).
@@ -11,17 +19,21 @@ server_url = https://rz-checkin.intern.example.org
 agent_id = kiosk1
 
 ; API-Key, der beim Anlegen des Agenten im Admin-Bereich einmalig angezeigt wird.
-; Nicht im Klartext committen -- besser über RZ_AGENT_API_KEY setzen oder die Datei
-; mit eingeschränkten NTFS-Rechten versehen.
+; Nicht im Klartext committen -- besser über RZ_AGENT_API_KEY setzen oder die Datei mit
+; eingeschränkten Rechten versehen (Windows: NTFS-Rechte; Linux: chmod 600, das setzt
+; das Einstellungen-Fenster von sich aus).
 api_key = BITTE-AUS-DEM-ADMIN-BEREICH-EINTRAGEN
 
 ; Referenzhardware: NFC-Kartenleser USB ACR122U-A9 (RFID). Vendor:Product 072f:2200
 ; (ACS ACR122U) -- fest angeben statt nur "usb", damit der Agent nicht versehentlich ein
-; anderes USB-Gerät anspricht. Windows-Treiber-Setup siehe agent/README.md Abschnitt 1.
+; anderes USB-Gerät anspricht. Der Wert ist auf beiden Plattformen identisch; die
+; Vorbereitung des Geräts unterscheidet sich: Windows-Treiber-Setup (Zadig) siehe
+; agent/README.md Abschnitt 1, Linux (udev + Kernel-Modul-Blacklist) Abschnitt 9.2.
 reader = usb:072f:2200
 
-; Alternative: PN532-Board als USB-Seriell (UART, meldet sich als COM-Port):
-;   reader = tty:COM3:pn532
+; Alternative: PN532-Board als USB-Seriell (UART):
+;   reader = tty:COM3:pn532     ; Windows (COM-Port aus dem Geräte-Manager)
+;   reader = tty:USB0:pn532     ; Linux (/dev/ttyUSB0, Benutzer in Gruppe "dialout")
 ; Alternative: irgendein von nfcpy unterstützter USB-Leser (Auto-Erkennung):
 ;   reader = usb
 
@@ -51,7 +63,10 @@ verify_tls = true
 ; Pfad zu einem eigenen CA-Bundle, falls der Server ein internes Zertifikat nutzt.
 ; ca_bundle = C:\pfad\zur\firmen-ca.pem
 
-; Dateien im Arbeitsverzeichnis des Agenten (bei nssm i.d.R. der Installationsordner).
+; Relative Namen werden im Ordner dieser agent.ini angelegt; ist der nicht beschreibbar
+; (z.B. /etc/rz-checkin-agent), weicht der Agent auf das Datenverzeichnis des Benutzers
+; aus (~/.local/state/rz-checkin-agent bzw. /var/lib/rz-checkin-agent beim systemd-
+; Dienst). Absolute Pfade werden unverändert übernommen. Siehe README Abschnitt 8.
 spool_path = agent_spool.jsonl
 log_path = reader_agent.log
 
@@ -68,3 +83,8 @@ reset_after_failures = 3
 ; (bei nssm i.d.R. LocalSystem) -- devcon/pnputil brauchen dafür keine zusätzliche
 ; Berechtigung. Leer/auskommentiert = kein Hard-Reset-Befehl.
 ; reset_command = C:\rz-checkin-agent\devcon.exe restart "USB\VID_072F&PID_2200*"
+;
+; Linux-Gegenstück: den USB-Port de- und wieder reautorisieren. Das braucht root, ist
+; also nur im systemd-Dienstbetrieb sinnvoll; den Gerätepfad einmalig ermitteln mit
+; `grep -l 072f /sys/bus/usb/devices/*/idVendor`. Siehe README Abschnitt 9.7.
+; reset_command = /bin/sh -c 'echo 0 > /sys/bus/usb/devices/1-2/authorized; sleep 2; echo 1 > /sys/bus/usb/devices/1-2/authorized'

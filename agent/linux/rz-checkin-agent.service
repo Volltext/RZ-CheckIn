@@ -1,0 +1,52 @@
+# systemd-Dienst für den Reader-Agenten OHNE grafische Oberfläche -- das Linux-Gegenstück
+# zum nssm-Dienst unter Windows. Gedacht für Kiosk-PCs, die den Agenten unabhängig von
+# einer angemeldeten Desktop-Sitzung betreiben sollen (Start schon vor dem Login,
+# automatischer Neustart nach Absturz).
+#
+# Für den normalen Kiosk-Desktop mit Systray/Fenster wird dieser Dienst NICHT gebraucht --
+# dort reicht der Autostart-Eintrag (linux/rz-checkin-agent.desktop). Beides gleichzeitig
+# zu betreiben ist keine gute Idee: zwei Prozesse würden sich um denselben Kartenleser
+# streiten.
+#
+# Installation (macht auch linux/install.sh --service):
+#   sudo cp rz-checkin-agent.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now rz-checkin-agent
+[Unit]
+Description=RZ-CheckIn Reader-Agent
+Documentation=https://github.com/volltext/rz-checkin
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Eigenes, unprivilegiertes Konto (legt install.sh --service an). Es muss in der Gruppe
+# "plugdev" sein, damit die udev-Regel den Zugriff auf den Kartenleser erlaubt.
+User=rz-checkin
+Group=rz-checkin
+SupplementaryGroups=plugdev
+
+# Konfiguration systemweit unter /etc, damit sie nicht am Home eines Benutzers hängt.
+Environment=RZ_AGENT_CONFIG=/etc/rz-checkin-agent/agent.ini
+# Log und Offline-Puffer landen in /var/lib/rz-checkin-agent (StateDirectory, wird von
+# systemd angelegt): /etc ist für den Dienst nicht beschreibbar, der Agent weicht dann
+# von sich aus auf XDG_STATE_HOME aus (siehe agent/agent_paths.py).
+Environment=XDG_STATE_HOME=/var/lib
+StateDirectory=rz-checkin-agent
+WorkingDirectory=/var/lib/rz-checkin-agent
+
+ExecStart=/usr/local/bin/rz-checkin-agent --headless
+Restart=on-failure
+RestartSec=5
+
+# Grundabsicherung. PrivateDevices bleibt bewusst AUS -- der Dienst braucht Zugriff auf
+# /dev/bus/usb (Kartenleser und USB-Reset).
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=strict
+ProtectControlGroups=yes
+ProtectKernelTunables=yes
+RestrictSUIDSGID=yes
+
+[Install]
+WantedBy=multi-user.target

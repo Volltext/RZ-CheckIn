@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=RZ-CheckIn Agent
+GenericName=Reader-Agent
+Comment=Liest Dienstausweise am Kartenleser und meldet sie an RZ-CheckIn
+Exec=/usr/local/bin/rz-checkin-agent
+Terminal=false
+Categories=Utility;System;
+# Beim Anmelden automatisch starten, wenn die Datei in ~/.config/autostart/ liegt
+# (siehe linux/install.sh). Der Agent zeigt dann je nach Desktop ein Symbol im
+# Infobereich oder -- falls es dort keinen gibt (GNOME/Wayland) -- sein kleines Fenster.
+X-GNOME-Autostart-enabled=true
