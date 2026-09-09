@@ -237,7 +237,15 @@ def send_scan(config: AgentConfig, uid: str, timestamp: datetime) -> bool:
 
     if response.status_code == 200:
         data = response.json()
-        LOG.info("Scan %s: %s (%s)", uid, data.get("result"), data.get("name"))
+        ergebnis = data.get("result")
+        if ergebnis == "rejected":
+            # Der Server hat die Karte anhand der im Admin-Bereich hinterlegten UID-Muster
+            # abgelehnt (Kiosk zeigt "Bitte Dienstausweis vorhalten"). Kein Fehler des
+            # Agenten -- aber als Warnung hilfreich, wenn jemand fragt, warum eine Karte
+            # nicht funktioniert.
+            LOG.warning("Scan %s abgelehnt: UID passt auf keines der zugelassenen Muster", uid)
+        else:
+            LOG.info("Scan %s: %s", uid, ergebnis)
         return True
 
     LOG.warning("Server antwortete mit %s für Scan %s: %s", response.status_code, uid, response.text[:200])

@@ -7,6 +7,18 @@
     </span>
   </div>
   <script>beep();</script>
+{% elif event and event.result == "rejected" %}
+  {# Karte passt auf keines der im Admin-Bereich hinterlegten UID-Muster (siehe
+     app/services/uid_muster.py) -- bewusst ohne die UID anzuzeigen, das hilft am Kiosk
+     niemandem weiter. #}
+  <div class="feedback feedback-rejected">
+    <span class="feedback-icon">⛔</span>
+    <span class="feedback-text">
+      Bitte Dienstausweis vorhalten
+      <br><span class="feedback-sub">Diese Karte ist für den Check-in nicht freigegeben.</span>
+    </span>
+  </div>
+  <script>beep(240);</script>
 {% else %}
   <div class="feedback-idle" title="Bereit zum Einlesen">
     <svg class="scan-icon" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Bereit zum Einlesen">

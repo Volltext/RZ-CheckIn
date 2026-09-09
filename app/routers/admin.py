@@ -35,10 +35,13 @@ from app.services.settings import (
     get_auto_checkout_hours,
     get_besucher_suche_aktiv,
     get_retention_days,
+    get_uid_muster,
     set_auto_checkout_hours,
     set_besucher_suche_aktiv,
     set_retention_days,
+    set_uid_muster,
 )
+from app.services.uid_muster import format_muster, parse_muster, pruefe_muster, uid_passt
 from app.services.agents import delete_agent
 from app.services.visitors import VisitorCurrentlyPresentError, delete_visitor
 from app.templating import templates
@@ -344,22 +347,31 @@ def passwort_aendern(
 
 # --- Einstellungen -------------------------------------------------------------
 
+# Die Einstellungsseite zeigt alle Einstellungen untereinander, jedes Teilformular
+# rendert sie also komplett neu. `bereich` sagt dem Template, in welcher Karte die
+# Erfolgs-/Fehlermeldung stehen soll -- sonst erschiene "Gespeichert." beim Speichern
+# der Aufbewahrungsfrist oben beim automatischen Auschecken.
+def _einstellungen_context(db: Session, admin: AdminUser, **overrides) -> dict:
+    context = {
+        "admin": admin,
+        "auto_checkout_stunden": get_auto_checkout_hours(db),
+        "besucher_suche_aktiv": get_besucher_suche_aktiv(db),
+        "aufbewahrung_tage": get_retention_days(db),
+        "uid_muster_text": format_muster(get_uid_muster(db)),
+        "bereich": None,
+        "fehler": None,
+        "erfolg": False,
+        "uid_test": None,
+    }
+    context.update(overrides)
+    return context
+
 
 @router.get("/einstellungen", response_class=HTMLResponse)
 def einstellungen_form(
     request: Request, db: Session = Depends(get_db), admin: AdminUser = Depends(get_current_admin)
 ) -> HTMLResponse:
-    return templates.TemplateResponse(
-        request,
-        "admin/einstellungen.html",
-        {
-            "admin": admin,
-            "auto_checkout_stunden": get_auto_checkout_hours(db),
-            "besucher_suche_aktiv": get_besucher_suche_aktiv(db),
-            "aufbewahrung_tage": get_retention_days(db),
-            "erfolg": False,
-        },
-    )
+    return templates.TemplateResponse(request, "admin/einstellungen.html", _einstellungen_context(db, admin))
 
 
 @router.post("/einstellungen", response_class=HTMLResponse)
@@ -369,22 +381,16 @@ def einstellungen_speichern(
     db: Session = Depends(get_db),
     admin: AdminUser = Depends(get_current_admin),
 ) -> HTMLResponse:
-    fehler = None
     if auto_checkout_stunden < 0:
-        fehler = "Bitte 0 (deaktiviert) oder eine positive Stundenzahl angeben."
-
-    if fehler:
         return templates.TemplateResponse(
             request,
             "admin/einstellungen.html",
-            {
-                "admin": admin,
-                "auto_checkout_stunden": get_auto_checkout_hours(db),
-                "besucher_suche_aktiv": get_besucher_suche_aktiv(db),
-                "aufbewahrung_tage": get_retention_days(db),
-                "fehler": fehler,
-                "erfolg": False,
-            },
+            _einstellungen_context(
+                db,
+                admin,
+                bereich="auto_checkout",
+                fehler="Bitte 0 (deaktiviert) oder eine positive Stundenzahl angeben.",
+            ),
             status_code=400,
         )
 
@@ -392,13 +398,7 @@ def einstellungen_speichern(
     return templates.TemplateResponse(
         request,
         "admin/einstellungen.html",
-        {
-            "admin": admin,
-            "auto_checkout_stunden": auto_checkout_stunden,
-            "besucher_suche_aktiv": get_besucher_suche_aktiv(db),
-            "aufbewahrung_tage": get_retention_days(db),
-            "erfolg": True,
-        },
+        _einstellungen_context(db, admin, bereich="auto_checkout", erfolg=True),
     )
 
 
@@ -415,13 +415,7 @@ def einstellungen_besucher_suche_speichern(
     return templates.TemplateResponse(
         request,
         "admin/einstellungen.html",
-        {
-            "admin": admin,
-            "auto_checkout_stunden": get_auto_checkout_hours(db),
-            "besucher_suche_aktiv": aktiv,
-            "aufbewahrung_tage": get_retention_days(db),
-            "erfolg": True,
-        },
+        _einstellungen_context(db, admin, bereich="besucher_suche", erfolg=True),
     )
 
 
@@ -432,22 +426,13 @@ def einstellungen_aufbewahrung_speichern(
     db: Session = Depends(get_db),
     admin: AdminUser = Depends(get_current_admin),
 ) -> HTMLResponse:
-    fehler = None
     if aufbewahrung_tage < 1:
-        fehler = "Bitte eine positive Anzahl Tage angeben."
-
-    if fehler:
         return templates.TemplateResponse(
             request,
             "admin/einstellungen.html",
-            {
-                "admin": admin,
-                "auto_checkout_stunden": get_auto_checkout_hours(db),
-                "besucher_suche_aktiv": get_besucher_suche_aktiv(db),
-                "aufbewahrung_tage": get_retention_days(db),
-                "fehler": fehler,
-                "erfolg": False,
-            },
+            _einstellungen_context(
+                db, admin, bereich="aufbewahrung", fehler="Bitte eine positive Anzahl Tage angeben."
+            ),
             status_code=400,
         )
 
@@ -455,11 +440,45 @@ def einstellungen_aufbewahrung_speichern(
     return templates.TemplateResponse(
         request,
         "admin/einstellungen.html",
-        {
-            "admin": admin,
-            "auto_checkout_stunden": get_auto_checkout_hours(db),
-            "besucher_suche_aktiv": get_besucher_suche_aktiv(db),
-            "aufbewahrung_tage": aufbewahrung_tage,
-            "erfolg": True,
-        },
+        _einstellungen_context(db, admin, bereich="aufbewahrung", erfolg=True),
+    )
+
+
+@router.post("/einstellungen/uid-muster", response_class=HTMLResponse)
+def einstellungen_uid_muster_speichern(
+    request: Request,
+    uid_muster: str = Form(""),
+    test_uid: str = Form(""),
+    db: Session = Depends(get_db),
+    admin: AdminUser = Depends(get_current_admin),
+) -> HTMLResponse:
+    """Welche Karten-UIDs überhaupt ein-/auschecken dürfen (siehe
+    app/services/uid_muster.py). Leeres Feld = keine Einschränkung.
+
+    `test_uid` ist optional: eine UID, für die direkt nach dem Speichern angezeigt wird,
+    ob sie zugelassen wäre -- damit der Admin ein Muster prüfen kann, ohne mit der Karte
+    zum Kiosk laufen zu müssen."""
+    muster = parse_muster(uid_muster)
+    fehler = pruefe_muster(muster)
+    if fehler:
+        return templates.TemplateResponse(
+            request,
+            "admin/einstellungen.html",
+            # Eingabe unverändert zurückgeben, damit die fehlerhafte Zeile nicht verloren
+            # geht und korrigiert werden kann.
+            _einstellungen_context(db, admin, bereich="uid_muster", fehler=fehler, uid_muster_text=uid_muster),
+            status_code=400,
+        )
+
+    set_uid_muster(db, muster)
+
+    uid_test = None
+    if test_uid.strip():
+        geprueft = test_uid.strip().upper()
+        uid_test = {"uid": geprueft, "erlaubt": uid_passt(geprueft, muster)}
+
+    return templates.TemplateResponse(
+        request,
+        "admin/einstellungen.html",
+        _einstellungen_context(db, admin, bereich="uid_muster", erfolg=True, uid_test=uid_test),
     )

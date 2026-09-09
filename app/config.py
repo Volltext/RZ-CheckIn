@@ -39,6 +39,11 @@ class Settings(BaseSettings):
     # Frist überschritten hat (siehe app/main.py). Kein Admin-Wert, da rein technisch.
     auto_checkout_check_interval_seconds: int = 300
 
+    # Startwert für die UID-Syntax-Whitelist (siehe app/services/uid_muster.py), solange
+    # der Admin im Admin-Bereich noch nichts anderes eingestellt hat. Mehrere Muster
+    # kommagetrennt, leer = keine Einschränkung (jede Karte darf einchecken).
+    uid_muster: str = ""
+
     admin_ip_allowlist: str = ""
 
     site_title: str = "Rechenzentrum Check-in"
