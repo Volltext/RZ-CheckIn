@@ -87,8 +87,8 @@ Test ohne Hardware (prüft Konfiguration + Verbindung zum Server):
 python reader_agent.py --config agent.ini --simulate-uid AABBCCDD --once
 ```
 
-Erwartete Ausgabe: `Scan AABBCCDD: unknown_card` (oder `checkin`/`checkout`, falls die
-UID bereits einem Mitarbeiter zugeordnet ist).
+Erwartete Ausgabe: `Scan AABBCCDD: checkin` -- es gibt kein Mitarbeiter-Register, jede
+UID togglet direkt Checkin/Checkout.
 
 ## 4. Kommandozeilen-Variante als Windows-Dienst einrichten (nssm)
 

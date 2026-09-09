@@ -18,9 +18,8 @@ from datetime import datetime, timezone
 
 _MAX_EVENTS = 5
 _TTL_SECONDS = 8
-# Die Registrierung einer unbekannten Karte braucht etwas länger als ein kurzes
-# "eingecheckt"-Banner, damit Zeit bleibt, den Hinweis zu lesen und den
-# Registrieren-Button zu drücken (kein Formular mehr -- siehe kiosk/_feedback.html).
+# Der Hinweis auf eine unbekannte Karte braucht etwas länger als ein kurzes
+# "eingecheckt"-Banner, damit Zeit bleibt, ihn zu lesen.
 _TTL_SECONDS_UNKNOWN_CARD = 20
 
 _lock = threading.Lock()
@@ -32,22 +31,11 @@ class ScanFeedbackEvent:
     result: str
     name: str | None
     occurred_at: datetime
-    uid: str | None = None
-    # Agent-ID des scannenden Readers (= Technikraum, siehe app/models.py::Agent).
-    # Wird bei der Registrierung einer unbekannten Karte (kiosk/_feedback.html) als
-    # Raum für den ersten Checkin-Eintrag mitgeschickt.
-    agent_id: str | None = None
 
 
-def push_event(
-    result: str, name: str | None = None, *, uid: str | None = None, agent_id: str | None = None
-) -> None:
+def push_event(result: str, name: str | None = None) -> None:
     with _lock:
-        _events.append(
-            ScanFeedbackEvent(
-                result=result, name=name, occurred_at=datetime.now(timezone.utc), uid=uid, agent_id=agent_id
-            )
-        )
+        _events.append(ScanFeedbackEvent(result=result, name=name, occurred_at=datetime.now(timezone.utc)))
 
 
 def latest_event() -> ScanFeedbackEvent | None:

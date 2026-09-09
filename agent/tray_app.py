@@ -38,7 +38,7 @@ _FIELDS = [
     ("server_url", "Server-URL", "https://rz-checkin.intern.example.org"),
     ("agent_id", "Agent-ID", "kiosk1"),
     ("api_key", "API-Key", ""),
-    ("reader", "Reader (ACR122U: usb:072f:2200)", "usb:072f:2200"),
+    ("reader", "Reader (nur der Wert, z.B. usb:072f:2200 für ACR122U)", "usb:072f:2200"),
 ]
 
 

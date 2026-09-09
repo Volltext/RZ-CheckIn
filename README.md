@@ -215,17 +215,16 @@ darunter eine Split-Ansicht mit einer Spalte je Technikraum:
     dargestellt als grüner Punkt + Zähler (kein Name, keine Kartennummer — siehe
     Datensparsamkeit oben). Ein manuelles Auschecken einzelner Mitarbeiter gibt es am
     Kiosk deshalb bewusst nicht mehr; dafür gibt es das automatische Auschecken nach
-    Zeitablauf sowie bei Bedarf den Admin-Bereich (`/admin/mitarbeiter` — Kartenverwaltung
-    für Mitarbeiter, aktuell ohne eigenen Menüpunkt in der Navigation, aber weiterhin
-    unter dieser Adresse erreichbar).
+    Zeitablauf sowie bei Bedarf den Admin-Bereich (`/admin/mitarbeiter` — zeigt die
+    aktuell eingecheckten Karten-UIDs zum manuellen Auschecken, aktuell ohne eigenen
+    Menüpunkt in der Navigation, aber weiterhin unter dieser Adresse erreichbar).
   - *Externe Besucher*: eine Liste mit Name/Firma/Zeit und "Auschecken"-Button pro Zeile
     (z. B. wenn jemand vergessen hat, sich abzumelden).
   - Personen ohne (mehr) gültige Raumzuordnung (z. B. Alteinträge von vor Einführung
     dieser Funktion) landen in einem zusätzlichen Kärtchen "Ohne Raumzuordnung".
-- **Neue Dienstausweise**: hält jemand eine noch unbekannte Karte an den Reader, zeigt
-  der Scan-Bereich statt einer Fehlermeldung einen Hinweis mit einem
-  "Registrieren"-Button — ein Klick legt die Kartennummer an und checkt sofort ein, ganz
-  ohne Umweg über den Admin-Bereich und **ohne Namenseingabe**.
+- **Kein Mitarbeiter-Register**: jede am Reader gescannte Karten-UID checkt sich direkt
+  selbst ein bzw. aus (Toggle), ganz ohne vorherige Registrierung im Admin-Bereich —
+  welche UID das ist, spielt keine Rolle, sie wird nur als Kennung im Log gespeichert.
 - **Externe Besucher einchecken**: eigene, für Touch-Terminals optimierte Maske
   (`/kiosk/besucher`) mit Suche nach vorhandenem Profil (im Admin-Bereich unter
   "Einstellungen" an-/abschaltbar) und Formular für ein neues Profil; der
@@ -294,18 +293,17 @@ Jeder Test läuft gegen eine frische, temporäre SQLite-Datenbank (siehe
 
 ## Datenmodell (Kurzfassung)
 
-- `employees` — Mitarbeiter, geführt **ausschließlich über `rfid_uid`** (die
-  Dienstausweisnummer, eindeutig) + `aktiv`-Flag statt Löschen beim Ausscheiden. Bewusst
-  **kein Name und keine sonstige personenbezogene Angabe** (siehe Datensparsamkeit oben).
-  Die eigene `id` bleibt trotzdem bestehen, damit ein Kartentausch (verlorene/defekte
-  Karte) möglich ist, ohne die Anwesenheitshistorie unter einem neuen Eintrag
-  fortzuführen.
+- **Kein Mitarbeiter-Register**: es gibt bewusst keine `employees`-Tabelle. Jede am
+  Reader gescannte Karten-UID togglet direkt in `checklog` (siehe unten) — ohne
+  vorherige Registrierung, ohne Prüfung, ob die Karte "bekannt" ist (siehe
+  `app/services/attendance.py::record_rfid_scan`).
 - `visitors` — Besucher-Stammdaten (Name, Firma, Telefon), dauerhaft/wiederverwendbar;
   DSGVO-Löschung entfernt die Zeile, das Log bleibt unangetastet (siehe unten).
-- `checklog` — append-only, `person_type` + `person_id` (kein FK, polymorpher Verweis),
-  `action` (checkin/checkout), `source` (`rfid`/`manual`/`auto` — Letzteres fürs
-  automatische Auschecken), `raum` (Technikraum des Eintrags, siehe "Mehrere
-  Technikräume" oben — ebenfalls kein FK, sondern eine lose Referenz auf
+- `checklog` — append-only, `person_type` + `person_id` (kein FK, polymorpher Verweis;
+  bei Mitarbeitern ist `person_id` direkt die Karten-UID, bei Besuchern die
+  `visitors.id`), `action` (checkin/checkout), `source` (`rfid`/`manual`/`auto` —
+  Letzteres fürs automatische Auschecken), `raum` (Technikraum des Eintrags, siehe
+  "Mehrere Technikräume" oben — ebenfalls kein FK, sondern eine lose Referenz auf
   `agents.agent_id`; `NULL` = keine Raumzuordnung). Der aktuelle "wer ist drin"-Status
   wird immer aus dem letzten Eintrag pro Person **abgeleitet**, nie separat gepflegt
   (`app/services/attendance.py::list_present`).
@@ -313,8 +311,6 @@ Jeder Test läuft gegen eine frische, temporäre SQLite-Datenbank (siehe
   die PRTG-Überwachung. Da pro Raum genau ein Agent existiert, dient der Eintrag
   zugleich als Raumzuordnung für die Split-Ansicht (siehe oben) — es gibt bewusst kein
   eigenes Raum-Modell dafür.
-- `unknown_scans` — unbekannte UIDs, die am Reader gescannt wurden, zur späteren
-  Zuordnung im Admin-Bereich.
 - `settings` — Key-Value-Ablage für zur Laufzeit im Admin-Bereich änderbare
   Einstellungen (aktuell: `auto_checkout_hours`, `besucher_suche_aktiv`, siehe unten),
   im Unterschied zu `app/config.py` (Umgebungsvariablen, nur beim Start gelesen).
@@ -340,15 +336,15 @@ werden soll.
 ### Schema-Migration bestehender Installationen
 
 Es gibt bewusst kein separates Migrationswerkzeug (Alembic o.ä.) — beim Start
-(`app/db.py::init_db`) erkennt die Anwendung ein älteres Schema (z. B. `employees` mit
-noch vorhandenen Namensfeldern aus einer Version vor dieser Datenschutz-Anpassung) und
-hebt es automatisch auf den aktuellen Stand: Namen werden dabei bewusst **nicht**
-übernommen (genau das ist die fachliche Vorgabe), alle anderen Daten (Kartennummern,
-Log-Einträge) bleiben vollständig erhalten. Rein additive Änderungen (z. B. die
-nullable Spalte `checklog.raum` für die Technikraum-Zuordnung) zieht `init_db()`
-einfacher per `ALTER TABLE ... ADD COLUMN` nach, ohne dass dafür eine Tabelle umbenannt
-werden muss. Vor einem Update auf eine Version mit Datenmodelländerungen trotzdem ein
-reguläres Backup ziehen (siehe Abschnitt "Backup").
+(`app/db.py::init_db`) hebt die Anwendung ein bestehendes Schema automatisch auf den
+aktuellen Stand. Das alte Mitarbeiter-Register (`employees`-Tabelle, samt einer noch
+älteren Version mit Namensfeldern) und die Zwischenablage für unbekannte Karten
+(`unknown_scans`) gibt es nicht mehr — beide Tabellen werden beim Start ersatzlos
+entfernt, `checklog`-Einträge bleiben davon unangetastet (append-only). Rein additive
+Änderungen (z. B. die nullable Spalte `checklog.raum` für die Technikraum-Zuordnung)
+zieht `init_db()` einfacher per `ALTER TABLE ... ADD COLUMN` nach, ohne dass dafür eine
+Tabelle umbenannt werden muss. Vor einem Update auf eine Version mit
+Datenmodelländerungen trotzdem ein reguläres Backup ziehen (siehe Abschnitt "Backup").
 
 ### Append-only-Schutz
 
@@ -519,15 +515,14 @@ Siehe `docs/PRTG.md`.
 - Rein internes Tool: kein Internetzugang für Server oder Kiosk-PC nötig, Betrieb im
   internen VLAN (siehe "Deployment ohne Internetzugang auf dem Server" oben).
 - Kiosk-Oberfläche (`/`, `/kiosk/...`) ist bewusst ohne Login — sie steht am Kiosk-PC vor
-  Ort und ihre Nutzung (Live-Übersicht einsehen, Besucher ein-/auschecken, neue
-  Dienstausweise registrieren) ist nicht schützenswert im gleichen Sinn wie der
-  Admin-Bereich.
-- **Registrierung neuer Dienstausweise** (unbekannte Karte → per Knopfdruck am Kiosk
-  anlegen, siehe oben) folgt demselben Vertrauensmodell: wer physisch bis zum Reader
-  vordringt, darf ohnehin ins Rechenzentrum. Der Zutritt selbst wird weiterhin vom
-  bestehenden Zutrittssystem kontrolliert (Konzept: "steuert keine Türen") — die
-  Registrierung entscheidet nicht, wer reindarf, sondern nur, ab wann eine ohnehin
-  gültige Karte im Protokoll erscheint. Es wird dabei bewusst kein Name erfasst.
+  Ort und ihre Nutzung (Live-Übersicht einsehen, Besucher ein-/auschecken) ist nicht
+  schützenswert im gleichen Sinn wie der Admin-Bereich.
+- **Mitarbeiter-Karten**: jede am Reader gescannte UID togglet direkt Checkin/Checkout,
+  ohne vorherige Registrierung -- wer physisch bis zum Reader vordringt, darf ohnehin
+  ins Rechenzentrum (der Zutritt selbst wird vom bestehenden Zutrittssystem kontrolliert,
+  Konzept: "steuert keine Türen"). Es gibt deshalb bewusst kein Mitarbeiter-Register und
+  keine Möglichkeit, eine Karte zu sperren; die UID selbst ist die einzige im Log
+  gespeicherte Kennung.
 - Admin-Bereich (`/admin/...`) ist Login-geschützt (Argon2-Passworthash, signierte
   Session-Cookies) und kann zusätzlich per `RZ_ADMIN_IP_ALLOWLIST` auf bestimmte
   Quell-IPs eingeschränkt werden.

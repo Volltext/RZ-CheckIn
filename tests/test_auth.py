@@ -29,7 +29,7 @@ def test_rfid_checkin_with_correct_key_is_accepted(client, db):
         headers={"X-Agent-Key": api_key},
     )
     assert response.status_code == 200
-    assert response.json()["result"] == "unknown_card"
+    assert response.json()["result"] == "checkin"
 
 
 def test_heartbeat_requires_agent_key(client):

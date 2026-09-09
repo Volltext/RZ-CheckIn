@@ -12,7 +12,6 @@ from sqlalchemy import text
 from app.db import engine
 from app.services.attendance import record_rfid_scan
 from app.services.retention import purge
-from tests.factories import make_employee
 
 
 def _raw_connection() -> sqlite3.Connection:
@@ -20,7 +19,6 @@ def _raw_connection() -> sqlite3.Connection:
 
 
 def test_direct_update_on_checklog_is_blocked(db):
-    make_employee(db, rfid_uid="AABBCCDD")
     record_rfid_scan(db, uid="AABBCCDD")
 
     con = _raw_connection()
@@ -32,7 +30,6 @@ def test_direct_update_on_checklog_is_blocked(db):
 
 
 def test_direct_delete_on_checklog_is_blocked_outside_retention_window(db):
-    make_employee(db, rfid_uid="AABBCCDD")
     record_rfid_scan(db, uid="AABBCCDD")
 
     con = _raw_connection()
@@ -44,7 +41,6 @@ def test_direct_delete_on_checklog_is_blocked_outside_retention_window(db):
 
 
 def test_retention_job_may_delete_within_its_own_transaction(db):
-    make_employee(db, rfid_uid="AABBCCDD")
     record_rfid_scan(db, uid="AABBCCDD")
 
     far_future = datetime.now(timezone.utc) + timedelta(days=3650)

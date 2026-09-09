@@ -1,9 +1,11 @@
 """Verwaltungsbereich: Login-geschützt, separat vom Kiosk (Konzept 3.4).
 
-Mitarbeiterkarten registrieren/zuordnen, Besucherprofile verwalten (inkl. Entfernen aus
-der aktiven Kontaktliste per Soft-Delete, siehe app/services/visitors.py),
-Log rein lesend einsehen + CSV-Export, Agenten verwalten (Entfernen ebenfalls per
-Soft-Delete, siehe app/services/agents.py), eigenes Passwort ändern.
+Anwesende Mitarbeiter einsehen/manuell auschecken (kein Register -- jede Karten-UID
+togglet direkt, siehe app/services/attendance.py::record_rfid_scan), Besucherprofile
+verwalten (inkl. Entfernen aus der aktiven Kontaktliste per Soft-Delete, siehe
+app/services/visitors.py), Log rein lesend einsehen + CSV-Export, Agenten verwalten
+(Entfernen ebenfalls per Soft-Delete, siehe app/services/agents.py), eigenes Passwort
+ändern.
 """
 
 from __future__ import annotations
@@ -17,7 +19,7 @@ from sqlalchemy.orm import Session
 
 from app.auth import get_auth_provider
 from app.db import get_db
-from app.models import Agent, AdminUser, CheckLog, Employee, UnknownScan, Visitor
+from app.models import Agent, AdminUser, CheckLog, Visitor
 from app.security import (
     check_admin_ip_allowlist,
     create_session_token,
@@ -27,7 +29,7 @@ from app.security import (
     hash_password,
     verify_password,
 )
-from app.services.attendance import checkout_person, is_present
+from app.services.attendance import checkout_person, list_present
 from app.services.export import export_checklog_csv
 from app.services.settings import (
     get_auto_checkout_hours,
@@ -100,132 +102,22 @@ def logout() -> RedirectResponse:
 def mitarbeiter_liste(
     request: Request, db: Session = Depends(get_db), admin: AdminUser = Depends(get_current_admin)
 ) -> HTMLResponse:
-    mitarbeiter = list(db.scalars(select(Employee).order_by(Employee.erstellt_am)))
-    anwesend = {
-        m.id: is_present(db, "employee", m.id) for m in mitarbeiter
-    }
-    unbekannte_karten = list(db.scalars(select(UnknownScan).order_by(UnknownScan.zuletzt_gesehen.desc())))
-    return templates.TemplateResponse(
-        request,
-        "admin/mitarbeiter.html",
-        {"admin": admin, "mitarbeiter": mitarbeiter, "anwesend": anwesend, "unbekannte_karten": unbekannte_karten},
-    )
+    """Kein Mitarbeiter-Register mehr -- zeigt schlicht die aktuell eingecheckten
+    Karten-UIDs zum manuellen Auschecken (siehe app/services/attendance.py::list_present)."""
+    anwesend = [p for p in list_present(db) if p.person_type == "employee"]
+    return templates.TemplateResponse(request, "admin/mitarbeiter.html", {"admin": admin, "anwesend": anwesend})
 
 
-@router.post("/mitarbeiter/anlegen")
-def mitarbeiter_anlegen(
-    rfid_uid: str = Form(...),
-    db: Session = Depends(get_db),
-    admin: AdminUser = Depends(get_current_admin),
-) -> RedirectResponse:
-    """Legt einen neuen Mitarbeiter-Eintrag direkt mit Dienstausweisnummer an -- es gibt
-    bewusst kein Namensfeld mehr (siehe app/models.py::Employee)."""
-    uid = rfid_uid.strip().upper()
-    bestehend = db.scalar(select(Employee).where(Employee.rfid_uid == uid))
-    if bestehend is not None:
-        raise HTTPException(status_code=409, detail="Diese Dienstausweisnummer ist bereits vergeben")
-    db.add(Employee(rfid_uid=uid, aktiv=True))
-    db.commit()
-    unknown = db.get(UnknownScan, uid)
-    if unknown is not None:
-        db.delete(unknown)
-        db.commit()
-    return RedirectResponse(url="/admin/mitarbeiter", status_code=303)
-
-
-@router.post("/mitarbeiter/{employee_id}/auschecken")
+@router.post("/mitarbeiter/{uid}/auschecken")
 def mitarbeiter_auschecken(
-    employee_id: str, db: Session = Depends(get_db), admin: AdminUser = Depends(get_current_admin)
+    uid: str, db: Session = Depends(get_db), admin: AdminUser = Depends(get_current_admin)
 ) -> RedirectResponse:
     """Manuelles Auschecken durch den Admin -- am Kiosk selbst geht das für Mitarbeiter
     bewusst nicht mehr (keine Namen mehr in der Live-Übersicht, siehe app/routers/kiosk.py)."""
     try:
-        checkout_person(
-            db, person_type="employee", person_id=employee_id, operator=f"Admin ({admin.username})"
-        )
+        checkout_person(db, person_type="employee", person_id=uid, operator=f"Admin ({admin.username})")
     except ValueError:
         pass  # bereits ausgecheckt -> einfach zur Liste zurück
-    return RedirectResponse(url="/admin/mitarbeiter", status_code=303)
-
-
-@router.post("/mitarbeiter/{employee_id}/karte-zuordnen")
-def mitarbeiter_karte_zuordnen(
-    employee_id: str,
-    rfid_uid: str = Form(...),
-    db: Session = Depends(get_db),
-    admin: AdminUser = Depends(get_current_admin),
-) -> RedirectResponse:
-    employee = db.get(Employee, employee_id)
-    if employee is None:
-        raise HTTPException(status_code=404, detail="Mitarbeiter nicht gefunden")
-    uid = rfid_uid.strip().upper()
-    bestehend = db.scalar(select(Employee).where(Employee.rfid_uid == uid))
-    if bestehend is not None and bestehend.id != employee.id:
-        raise HTTPException(status_code=409, detail="Karte ist bereits einem anderen Mitarbeiter zugeordnet")
-    employee.rfid_uid = uid
-    unknown = db.get(UnknownScan, uid)
-    if unknown is not None:
-        db.delete(unknown)
-    db.commit()
-    return RedirectResponse(url="/admin/mitarbeiter", status_code=303)
-
-
-@router.post("/mitarbeiter/{employee_id}/karte-entfernen")
-def mitarbeiter_karte_entfernen(
-    employee_id: str, db: Session = Depends(get_db), admin: AdminUser = Depends(get_current_admin)
-) -> RedirectResponse:
-    employee = db.get(Employee, employee_id)
-    if employee is None:
-        raise HTTPException(status_code=404, detail="Mitarbeiter nicht gefunden")
-    employee.rfid_uid = None
-    db.commit()
-    return RedirectResponse(url="/admin/mitarbeiter", status_code=303)
-
-
-@router.post("/mitarbeiter/{employee_id}/aktiv")
-def mitarbeiter_aktiv_setzen(
-    employee_id: str,
-    aktiv: bool = Form(...),
-    db: Session = Depends(get_db),
-    admin: AdminUser = Depends(get_current_admin),
-) -> RedirectResponse:
-    employee = db.get(Employee, employee_id)
-    if employee is None:
-        raise HTTPException(status_code=404, detail="Mitarbeiter nicht gefunden")
-    employee.aktiv = aktiv
-    db.commit()
-    return RedirectResponse(url="/admin/mitarbeiter", status_code=303)
-
-
-@router.post("/unbekannte-karten/{uid}/zuordnen")
-def unbekannte_karte_zuordnen(
-    uid: str,
-    employee_id: str = Form(...),
-    db: Session = Depends(get_db),
-    admin: AdminUser = Depends(get_current_admin),
-) -> RedirectResponse:
-    employee = db.get(Employee, employee_id)
-    if employee is None:
-        raise HTTPException(status_code=404, detail="Mitarbeiter nicht gefunden")
-    bestehend = db.scalar(select(Employee).where(Employee.rfid_uid == uid))
-    if bestehend is not None and bestehend.id != employee.id:
-        raise HTTPException(status_code=409, detail="Karte ist bereits einem anderen Mitarbeiter zugeordnet")
-    employee.rfid_uid = uid
-    unknown = db.get(UnknownScan, uid)
-    if unknown is not None:
-        db.delete(unknown)
-    db.commit()
-    return RedirectResponse(url="/admin/mitarbeiter", status_code=303)
-
-
-@router.post("/unbekannte-karten/{uid}/loeschen")
-def unbekannte_karte_loeschen(
-    uid: str, db: Session = Depends(get_db), admin: AdminUser = Depends(get_current_admin)
-) -> RedirectResponse:
-    unknown = db.get(UnknownScan, uid)
-    if unknown is not None:
-        db.delete(unknown)
-        db.commit()
     return RedirectResponse(url="/admin/mitarbeiter", status_code=303)
 
 
@@ -327,9 +219,6 @@ def _log_eintraege(db: Session, von_dt: datetime | None, bis_dt: datetime | None
     if bis_dt is not None:
         query = query.where(CheckLog.timestamp <= bis_dt)
 
-    # Für Mitarbeiter gibt es keinen Namen -- im Log/Export erscheint stattdessen die
-    # Dienstausweisnummer (die einzige gespeicherte Kennung, siehe app/models.py::Employee).
-    employees = {e.id: (e.rfid_uid or "(ohne Kartennummer)") for e in db.scalars(select(Employee))}
     visitors = {v.id: (v.voller_name, v.firma) for v in db.scalars(select(Visitor))}
     # Raum kommt (wie bei Mitarbeitern/Besuchern) nur als Anzeige-Auflösung dazu -- der
     # Log-Eintrag selbst speichert nur die Agent-ID (siehe app/models.py::CheckLog.raum),
@@ -341,7 +230,9 @@ def _log_eintraege(db: Session, von_dt: datetime | None, bis_dt: datetime | None
     eintraege = []
     for entry in db.scalars(query):
         if entry.person_type == "employee":
-            name = employees.get(entry.person_id, "(gelöschter Mitarbeiter-Eintrag)")
+            # Kein Register -- person_id ist direkt die Karten-UID (siehe
+            # app/models.py::CheckLog).
+            name = entry.person_id
             firma = None
         else:
             name, firma = visitors.get(entry.person_id, ("(gelöschtes Profil)", None))

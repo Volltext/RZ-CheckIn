@@ -4,16 +4,8 @@ from __future__ import annotations
 
 from sqlalchemy.orm import Session
 
-from app.models import Agent, AdminUser, Employee, Visitor
+from app.models import Agent, AdminUser, Visitor
 from app.security import generate_agent_api_key, hash_agent_api_key, hash_password
-
-
-def make_employee(db: Session, *, rfid_uid: str | None = None, aktiv: bool = True) -> Employee:
-    employee = Employee(rfid_uid=rfid_uid, aktiv=aktiv)
-    db.add(employee)
-    db.commit()
-    db.refresh(employee)
-    return employee
 
 
 def make_visitor(

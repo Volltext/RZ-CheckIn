@@ -1,14 +1,13 @@
-"""Kiosk-Oberfläche: Live-Übersicht, Ein-/Auschecken für Externe, Registrierung neuer
-Dienstausweise mit noch unbekannter Karte.
+"""Kiosk-Oberfläche: Live-Übersicht, Ein-/Auschecken für Externe.
 
-Kein Login nötig (Konzept 3.3) — die Seite steht am Kiosk-PC vor Ort. Wer bis zum Reader
-vordringt, darf ohnehin ins Rechenzentrum; deshalb dürfen sich Mitarbeiter hier auch
-selbst mit ihrer Karte registrieren, statt zwingend über den Admin-Bereich zu müssen.
-Für Mitarbeiter wird dabei bewusst NUR die Dienstausweisnummer gespeichert -- kein Name,
-keine Verknüpfung zu einer Person (Fachvorgabe, siehe app/models.py::Employee). Deshalb
-zeigt die Live-Übersicht für Mitarbeiter auch keine Namen/Zeilen mehr, nur die Anzahl der
-aktuell Anwesenden; ein manuelles Auschecken einzelner Mitarbeiter über den Kiosk entfällt
-damit (dafür gibt es das automatische Auschecken nach Zeitablauf, siehe
+Kein Login nötig (Konzept 3.3) — die Seite steht am Kiosk-PC vor Ort. Für Mitarbeiter
+gibt es kein Register: jede am Reader gescannte Karten-UID togglet direkt Checkin/
+Checkout (siehe app/services/attendance.py::record_rfid_scan), ohne dass die Karte
+vorher irgendwo angelegt werden muss. Es wird dabei bewusst NUR die Kartennummer
+gespeichert -- kein Name, keine Verknüpfung zu einer Person. Deshalb zeigt die
+Live-Übersicht für Mitarbeiter auch keine Namen/Zeilen, nur die Anzahl der aktuell
+Anwesenden; ein manuelles Auschecken einzelner Mitarbeiter über den Kiosk entfällt damit
+(dafür gibt es das automatische Auschecken nach Zeitablauf, siehe
 app/services/attendance.py::run_auto_checkout, sowie bei Bedarf den Admin-Bereich).
 
 Zustandsändernde Aktionen laufen über normale HTML-Formulare mit Server-Redirect (kein
@@ -24,13 +23,13 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db import get_db
-from app.models import Agent, CheckLog, Employee, UnknownScan, Visitor
+from app.models import Agent, Visitor
 from app.services.attendance import (
     checkin_visitor,
     checkout_person,
     presence_by_room,
 )
-from app.services.feedback import latest_event, push_event
+from app.services.feedback import latest_event
 from app.services.settings import get_besucher_suche_aktiv
 from app.templating import templates
 
@@ -95,48 +94,6 @@ def manuelles_auschecken(person_id: str, db: Session = Depends(get_db)) -> Redir
         checkout_person(db, person_type="visitor", person_id=person_id, operator="Kiosk (manuell)")
     except ValueError:
         pass  # bereits ausgecheckt -> einfach zur Übersicht zurück
-    return RedirectResponse(url="/", status_code=303)
-
-
-@router.post("/kiosk/mitarbeiter/registrieren")
-def mitarbeiter_karte_registrieren(
-    rfid_uid: str = Form(...),
-    raum: str = Form(""),
-    db: Session = Depends(get_db),
-) -> RedirectResponse:
-    """Nach einem Scan einer unbekannten Karte (siehe kiosk/_feedback.html) kann die
-    Karte per Knopfdruck direkt am Kiosk als neuer Dienstausweis registriert werden --
-    ohne Namenseingabe, es wird ausschließlich die Kartennummer gespeichert. `raum` kommt
-    als verstecktes Feld aus dem Scan-Event mit (Agent-ID des Readers, der die
-    unbekannte Karte gesehen hat, siehe app/services/feedback.py::ScanFeedbackEvent)."""
-    uid = rfid_uid.strip().upper()
-
-    existing = db.scalar(select(Employee).where(Employee.rfid_uid == uid))
-    if existing is not None:
-        # Karte wurde zwischenzeitlich schon zugeordnet (Admin oder ein zweiter
-        # Registrierungsversuch für dieselbe Karte) -- kein Duplikat anlegen.
-        push_event("conflict", "Diese Karte ist bereits einem Mitarbeiter zugeordnet.")
-        return RedirectResponse(url="/", status_code=303)
-
-    employee = Employee(rfid_uid=uid, aktiv=True)
-    db.add(employee)
-    db.flush()
-    db.add(
-        CheckLog(
-            person_type="employee",
-            person_id=employee.id,
-            action="checkin",
-            source="manual",
-            raum=_resolve_raum(db, raum),
-        )
-    )
-
-    unknown = db.get(UnknownScan, uid)
-    if unknown is not None:
-        db.delete(unknown)
-
-    db.commit()
-    push_event("checkin")
     return RedirectResponse(url="/", status_code=303)
 
 
