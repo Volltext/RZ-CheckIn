@@ -1,12 +1,11 @@
 """Kiosk-Oberfläche: Live-Übersicht, Ein-/Auschecken für Externe.
 
-Kein Login nötig (Konzept 3.3) — die Seite steht am Kiosk-PC vor Ort. Eine unbekannte
-Mitarbeiterkarte wird NICHT hier registriert -- das passiert bewusst ausschließlich über
-den Admin-Bereich (app/routers/admin.py::mitarbeiter_anlegen), damit niemand über den
-Kiosk unbemerkt einen neuen Dienstausweis-Eintrag anlegen kann. Für Mitarbeiter wird
-dabei bewusst NUR die Dienstausweisnummer gespeichert -- kein Name, keine Verknüpfung zu
-einer Person (Fachvorgabe, siehe app/models.py::Employee). Deshalb zeigt die
-Live-Übersicht für Mitarbeiter auch keine Namen/Zeilen mehr, nur die Anzahl der aktuell
+Kein Login nötig (Konzept 3.3) — die Seite steht am Kiosk-PC vor Ort. Für Mitarbeiter
+gibt es kein Register: jede am Reader gescannte Karten-UID togglet direkt Checkin/
+Checkout (siehe app/services/attendance.py::record_rfid_scan), ohne dass die Karte
+vorher irgendwo angelegt werden muss. Es wird dabei bewusst NUR die Kartennummer
+gespeichert -- kein Name, keine Verknüpfung zu einer Person. Deshalb zeigt die
+Live-Übersicht für Mitarbeiter auch keine Namen/Zeilen, nur die Anzahl der aktuell
 Anwesenden; ein manuelles Auschecken einzelner Mitarbeiter über den Kiosk entfällt damit
 (dafür gibt es das automatische Auschecken nach Zeitablauf, siehe
 app/services/attendance.py::run_auto_checkout, sowie bei Bedarf den Admin-Bereich).

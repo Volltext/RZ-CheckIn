@@ -1,7 +1,6 @@
 """Automatische Schema-Migration beim Start (app/db.py::init_db): bestehende
 Datenbanken aus einer älteren Version werden auf das aktuelle Schema gehoben, ohne
-Datenverlust bei den Log-Einträgen (Namen von Mitarbeitern werden dabei bewusst NICHT
-übernommen -- genau das ist die fachliche Vorgabe)."""
+Datenverlust bei den Log-Einträgen."""
 
 from __future__ import annotations
 
@@ -10,24 +9,29 @@ import sqlite3
 from sqlalchemy import select
 
 from app.db import engine, init_db
-from app.models import Agent, CheckLog, Employee
+from app.models import Agent, CheckLog
 
 
 def _raw_connection() -> sqlite3.Connection:
     return sqlite3.connect(engine.url.database)
 
 
-def test_legacy_employees_table_is_migrated_dropping_names(db):
+def _table_exists(con: sqlite3.Connection, name: str) -> bool:
+    row = con.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (name,)).fetchone()
+    return row is not None
+
+
+def test_legacy_employees_table_is_dropped():
+    """Das alte Mitarbeiter-Register gibt es nicht mehr -- jede Karten-UID togglet
+    jetzt direkt in checklog, ohne Registrierung (siehe
+    app/services/attendance.py::record_rfid_scan). Eine übrig gebliebene `employees`-
+    Tabelle aus einer älteren Version wird beim Start ersatzlos entfernt."""
     con = _raw_connection()
     try:
-        con.execute("DELETE FROM employees")
-        con.execute("DROP TABLE employees")
         con.execute(
             """
-            CREATE TABLE employees (
+            CREATE TABLE IF NOT EXISTS employees (
                 id VARCHAR(36) PRIMARY KEY,
-                vorname VARCHAR(200) NOT NULL,
-                nachname VARCHAR(200) NOT NULL,
                 rfid_uid VARCHAR(64) UNIQUE,
                 aktiv BOOLEAN,
                 erstellt_am DATETIME
@@ -35,8 +39,8 @@ def test_legacy_employees_table_is_migrated_dropping_names(db):
             """
         )
         con.execute(
-            "INSERT INTO employees (id, vorname, nachname, rfid_uid, aktiv, erstellt_am) "
-            "VALUES ('emp-1', 'Max', 'Mustermann', 'AABBCCDD', 1, '2024-01-01 00:00:00+00:00')"
+            "INSERT INTO employees (id, rfid_uid, aktiv, erstellt_am) "
+            "VALUES ('emp-1', 'AABBCCDD', 1, '2024-01-01 00:00:00+00:00')"
         )
         con.commit()
     finally:
@@ -44,11 +48,11 @@ def test_legacy_employees_table_is_migrated_dropping_names(db):
 
     init_db()
 
-    employee = db.get(Employee, "emp-1")
-    assert employee is not None
-    assert employee.rfid_uid == "AABBCCDD"
-    assert employee.aktiv is True
-    assert not hasattr(employee, "vorname")
+    con = _raw_connection()
+    try:
+        assert _table_exists(con, "employees") is False
+    finally:
+        con.close()
 
 
 def test_legacy_checklog_check_constraint_is_migrated_keeping_rows():

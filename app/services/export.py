@@ -10,7 +10,7 @@ from datetime import datetime
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models import Agent, CheckLog, Employee, Visitor
+from app.models import Agent, CheckLog, Visitor
 
 _COLUMNS = [
     "timestamp",
@@ -31,7 +31,6 @@ def export_checklog_csv(db: Session, *, von: datetime | None, bis: datetime | No
     if bis is not None:
         query = query.where(CheckLog.timestamp <= bis)
 
-    employees = {e.id: e for e in db.scalars(select(Employee))}
     visitors = {v.id: v for v in db.scalars(select(Visitor))}
     # Nur eine Anzeige-Auflösung, kein FK -- siehe app/models.py::CheckLog.raum und
     # app/routers/admin.py::_log_eintraege für dieselbe Logik in der Log-Ansicht.
@@ -46,10 +45,9 @@ def export_checklog_csv(db: Session, *, von: datetime | None, bis: datetime | No
 
     for entry in db.scalars(query):
         if entry.person_type == "employee":
-            person = employees.get(entry.person_id)
-            # Kein Name -- Mitarbeiter werden ausschließlich über die Dienstausweisnummer
-            # geführt (siehe app/models.py::Employee).
-            name = (person.rfid_uid or "(ohne Kartennummer)") if person else "(gelöschter Mitarbeiter-Eintrag)"
+            # Kein Register -- person_id ist direkt die Karten-UID (siehe
+            # app/models.py::CheckLog).
+            name = entry.person_id
             firma = ""
         else:
             person = visitors.get(entry.person_id)

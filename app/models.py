@@ -9,7 +9,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import CheckConstraint, DateTime, Index, Integer, String
+from sqlalchemy import CheckConstraint, DateTime, Index, String
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -23,27 +23,6 @@ def _now() -> datetime:
 
 class Base(DeclarativeBase):
     pass
-
-
-class Employee(Base):
-    """Interne Mitarbeiter werden bewusst NUR über ihre Dienstausweisnummer geführt --
-    keine Namen, keine sonstige personenbezogene Verknüpfung (Feedback aus der Fachseite:
-    das Log soll für interne Mitarbeiter keine Identität speichern, sondern ausschließlich
-    die Kartennummer). `rfid_uid` ist damit fachlich die Dienstausweisnummer, technisch
-    die vom Reader gelesene Karten-UID -- bei den eingesetzten Dienstausweisen ist beides
-    dieselbe Nummer.
-
-    Die eigene `id` bleibt trotzdem bestehen (statt die UID selbst als Primärschlüssel zu
-    nutzen), damit ein Kartentausch (verlorene/defekte Karte) möglich ist, ohne die
-    Anwesenheitshistorie unter einer neuen Person fortzuführen: der Admin trägt einfach
-    eine neue UID auf demselben Eintrag ein."""
-
-    __tablename__ = "employees"
-
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
-    rfid_uid: Mapped[str | None] = mapped_column(String(64), unique=True, nullable=True, index=True)
-    aktiv: Mapped[bool] = mapped_column(default=True)
-    erstellt_am: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
 
 class Visitor(Base):
@@ -63,10 +42,14 @@ class Visitor(Base):
 
 
 class CheckLog(Base):
-    """Append-only-Protokoll. Kein FK auf employees/visitors (polymorpher Verweis über
+    """Append-only-Protokoll. Kein FK auf visitors (polymorpher Verweis über
     person_type + person_id), stattdessen CHECK-Constraints auf die erlaubten Werte.
     Schreiben ausschließlich über INSERT — siehe app/db.py für den DB-seitigen Schutz.
-    """
+
+    Für Mitarbeiter (person_type == "employee") gibt es bewusst KEIN eigenes Register --
+    person_id ist direkt die vom Reader gelesene Karten-UID. Jede UID togglet
+    eigenständig Checkin/Checkout (siehe app/services/attendance.py::record_rfid_scan);
+    es gibt keine Vorab-Registrierung und keine Prüfung, ob die Karte "bekannt" ist."""
 
     __tablename__ = "checklog"
     __table_args__ = (
@@ -79,7 +62,9 @@ class CheckLog(Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
     person_type: Mapped[str] = mapped_column(String(20))
-    person_id: Mapped[str] = mapped_column(String(36))
+    # Bei Besuchern eine visitors.id (UUID, 36 Zeichen), bei Mitarbeitern direkt die
+    # Karten-UID (bis zu 64 Zeichen, siehe RfidScanRequest.uid) -- daher 64 statt 36.
+    person_id: Mapped[str] = mapped_column(String(64))
     action: Mapped[str] = mapped_column(String(20))
     source: Mapped[str] = mapped_column(String(20))
     # Index auf timestamp kommt aus __table_args__ (ix_checklog_timestamp) -- hier kein
@@ -142,18 +127,6 @@ class AdminUser(Base):
     username: Mapped[str] = mapped_column(String(200), unique=True, index=True)
     password_hash: Mapped[str] = mapped_column(String(200))
     erstellt_am: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
-
-
-class UnknownScan(Base):
-    """Unbekannte UIDs, die am Reader gescannt wurden, aber keinem Mitarbeiter zugeordnet
-    sind. Ermöglicht dem Admin, eine Karte per Klick zuzuordnen, statt die UID manuell
-    abzutippen (Konzept 3.1/3.4)."""
-
-    __tablename__ = "unknown_scans"
-
-    uid: Mapped[str] = mapped_column(String(64), primary_key=True)
-    zuletzt_gesehen: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
-    anzahl: Mapped[int] = mapped_column(Integer, default=1)
 
 
 class Setting(Base):

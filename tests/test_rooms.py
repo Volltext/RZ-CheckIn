@@ -9,14 +9,13 @@ from app.services.attendance import (
     presence_by_room,
     record_rfid_scan,
 )
-from tests.factories import make_agent, make_employee, make_visitor
+from tests.factories import make_agent, make_visitor
 
 
 def test_record_rfid_scan_stores_room_on_checklog(db):
-    employee = make_employee(db, rfid_uid="AABBCCDD")
     record_rfid_scan(db, uid="AABBCCDD", raum="kiosk1")
 
-    entry = db.query(CheckLog).filter_by(person_type="employee", person_id=employee.id).one()
+    entry = db.query(CheckLog).filter_by(person_type="employee", person_id="AABBCCDD").one()
     assert entry.raum == "kiosk1"
 
 
@@ -31,8 +30,6 @@ def test_checkin_visitor_stores_room_on_checklog(db):
 def test_presence_by_room_groups_by_room_key(db):
     make_agent(db, agent_id="kiosk1", bezeichnung="Raum 1")
     make_agent(db, agent_id="kiosk2", bezeichnung="Raum 2")
-    e1 = make_employee(db, rfid_uid="AABBCCDD")
-    e2 = make_employee(db, rfid_uid="11223344")
     visitor = make_visitor(db)
 
     record_rfid_scan(db, uid="AABBCCDD", raum="kiosk1")
@@ -40,22 +37,20 @@ def test_presence_by_room_groups_by_room_key(db):
     checkin_visitor(db, visitor_id=visitor.id, raum="kiosk1")
 
     grouped = presence_by_room(db)
-    assert {p.person_id for p in grouped["kiosk1"]} == {e1.id, visitor.id}
-    assert {p.person_id for p in grouped["kiosk2"]} == {e2.id}
+    assert {p.person_id for p in grouped["kiosk1"]} == {"AABBCCDD", visitor.id}
+    assert {p.person_id for p in grouped["kiosk2"]} == {"11223344"}
 
 
 def test_presence_by_room_groups_missing_room_under_none(db):
-    employee = make_employee(db, rfid_uid="AABBCCDD")
     record_rfid_scan(db, uid="AABBCCDD")  # kein raum angegeben
 
     grouped = presence_by_room(db)
-    assert grouped[None][0].person_id == employee.id
+    assert grouped[None][0].person_id == "AABBCCDD"
 
 
 def test_dashboard_shows_two_rooms_side_by_side(client, db):
     make_agent(db, agent_id="kiosk1", bezeichnung="Serverraum A")
     make_agent(db, agent_id="kiosk2", bezeichnung="Serverraum B")
-    make_employee(db, rfid_uid="AABBCCDD")
     record_rfid_scan(db, uid="AABBCCDD", raum="kiosk1")
 
     response = client.get("/")
@@ -164,7 +159,6 @@ def test_besucher_einchecken_stores_selected_room(client, db):
 
 def test_rfid_checkin_via_api_tags_checklog_with_agent_room(client, db):
     _, api_key = make_agent(db, agent_id="kiosk1", bezeichnung="Serverraum A")
-    make_employee(db, rfid_uid="AABBCCDD")
 
     response = client.post(
         "/api/checkin/rfid",

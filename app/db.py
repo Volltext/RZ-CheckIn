@@ -81,6 +81,17 @@ def _table_exists(cursor, table: str) -> bool:
     return cursor.fetchone() is not None
 
 
+def _drop_removed_tables(cursor) -> None:
+    """Tabellen aus einer älteren Version des Datenmodells, die es nicht mehr gibt:
+    `employees` (Mitarbeiter-Register) und `unknown_scans` (Zuordnung unbekannter Karten)
+    wurden ersatzlos entfernt -- jede Karten-UID togglet jetzt direkt in `checklog`, ohne
+    Registrierung (siehe app/services/attendance.py::record_rfid_scan). Bestehende
+    Zeilen in `checklog` bleiben unangetastet (append-only); nur die jetzt ungenutzten
+    Tabellen werden entfernt, damit sie nicht als Datenleiche liegen bleiben."""
+    for table in ("employees", "employees_legacy", "unknown_scans"):
+        cursor.execute(f"DROP TABLE IF EXISTS {table}")
+
+
 def _rename_away_if_outdated(cursor) -> set[str]:
     """Erkennt Tabellen aus einer älteren Version des Datenmodells und benennt sie um,
     BEVOR `create_all()` läuft -- `create_all()` legt Tabellen nur an, wenn sie noch
@@ -91,12 +102,6 @@ def _rename_away_if_outdated(cursor) -> set[str]:
     Gibt die Namen der umbenannten Tabellen zurück (ohne "_legacy"-Suffix).
     """
     renamed: set[str] = set()
-
-    if _table_exists(cursor, "employees") and "vorname" in _legacy_columns(cursor, "employees"):
-        # Altes Schema speicherte Vor-/Nachname -- laut Fachvorgabe darf das nicht mehr
-        # gespeichert werden. Die Namen werden beim Migrieren bewusst NICHT übernommen.
-        cursor.execute("ALTER TABLE employees RENAME TO employees_legacy")
-        renamed.add("employees")
 
     if _table_exists(cursor, "checklog"):
         cursor.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='checklog'")
@@ -126,13 +131,6 @@ def _add_missing_columns(cursor) -> None:
 
 
 def _migrate_renamed_tables(cursor, renamed: set[str]) -> None:
-    if "employees" in renamed:
-        cursor.execute(
-            "INSERT INTO employees (id, rfid_uid, aktiv, erstellt_am) "
-            "SELECT id, rfid_uid, aktiv, erstellt_am FROM employees_legacy"
-        )
-        cursor.execute("DROP TABLE employees_legacy")
-
     if "checklog" in renamed:
         cursor.execute(
             "INSERT INTO checklog (id, person_type, person_id, action, source, timestamp, operator) "
@@ -154,6 +152,7 @@ def init_db() -> None:
     raw_connection = engine.raw_connection()
     try:
         cursor = raw_connection.cursor()
+        _drop_removed_tables(cursor)
         renamed = _rename_away_if_outdated(cursor)
         raw_connection.commit()
     finally:

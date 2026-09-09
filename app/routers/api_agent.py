@@ -34,8 +34,8 @@ def checkin_rfid(
     # ist bereits die vertrauenswürdige Quelle für die Agent-Identität (siehe
     # app/security.require_agent).
     outcome = record_rfid_scan(db, uid=payload.uid, timestamp=payload.timestamp, raum=agent.agent_id)
-    # Es gibt bewusst keinen Namen im Feedback-Event -- Mitarbeiter werden nur über ihre
-    # Dienstausweisnummer geführt (siehe app/models.py::Employee).
+    # Es gibt bewusst keinen Namen im Feedback-Event -- es gibt kein Mitarbeiter-Register,
+    # jede Karten-UID togglet direkt (siehe app/services/attendance.py::record_rfid_scan).
     push_event(outcome.result)
     return RfidScanResponse(
         result=outcome.result,

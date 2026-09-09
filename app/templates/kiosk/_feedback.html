@@ -7,21 +7,6 @@
     </span>
   </div>
   <script>beep();</script>
-{% elif event and event.result == "card_inactive" %}
-  <div class="feedback feedback-fehler">
-    <span class="feedback-icon">✕</span>
-    <span class="feedback-text">Karte gesperrt</span>
-  </div>
-{% elif event and event.result == "conflict" %}
-  <div class="feedback feedback-fehler">
-    <span class="feedback-icon">✕</span>
-    <span class="feedback-text">{{ event.name }}</span>
-  </div>
-{% elif event and event.result == "unknown_card" %}
-  <div class="feedback-registrierung">
-    <p><strong>Karte nicht erkannt.</strong> Neue Dienstausweise werden ausschließlich über
-    den Admin-Bereich angelegt.</p>
-  </div>
 {% else %}
   <div class="feedback-idle" title="Bereit zum Einlesen">
     <svg class="scan-icon" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Bereit zum Einlesen">

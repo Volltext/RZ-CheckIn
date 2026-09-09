@@ -259,7 +259,6 @@ body:not(.kiosk) tbody tr:hover { background: rgba(37, 99, 235, 0.05); }
 
 .feedback-checkin { background: rgba(22, 163, 74, 0.25); border: 1px solid var(--farbe-erfolg); }
 .feedback-checkout { background: rgba(37, 99, 235, 0.25); border: 1px solid var(--farbe-akzent); }
-.feedback-fehler { background: rgba(220, 38, 38, 0.25); border: 1px solid var(--farbe-warnung); }
 
 /* Idle-Zustand: bewusst minimal gehalten (nur das Icon) -- der Platz gehört der
    Raum-Übersicht darunter, nicht dem "bereit zum Einlesen"-Hinweis. */
@@ -271,17 +270,6 @@ body:not(.kiosk) tbody tr:hover { background: rgba(37, 99, 235, 0.05); }
 }
 .scan-icon { width: 32px; height: 32px; color: var(--farbe-text-gedaempft); }
 .hinweis-klein { font-size: 0.8rem; color: var(--farbe-text-gedaempft); margin: 0; }
-
-/* Hinweis am Kiosk: unbekannte Karte, keine Selbstregistrierung (siehe
-   app/routers/kiosk.py). */
-.feedback-registrierung {
-  width: 100%;
-  background: rgba(37, 99, 235, 0.12);
-  border: 1px solid var(--farbe-akzent);
-  border-radius: var(--radius-md);
-  padding: 1.2rem 1.4rem;
-}
-.feedback-registrierung p { margin: 0; }
 
 /* Live-Übersicht: Mitarbeiter (intern) werden nur als Anzahl + grüne Punkte gezeigt,
    nie mit Namen (siehe app/services/attendance.py::PresentPerson). */
@@ -447,6 +435,3 @@ form.formular-inline { display: inline; }
 
 .hinweis-fehler { color: var(--farbe-warnung); font-weight: 600; }
 .hinweis-erfolg { color: var(--farbe-erfolg); font-weight: 600; }
-.badge { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 999px; font-size: 0.75rem; }
-.badge-aktiv { background: rgba(22,163,74,0.15); color: var(--farbe-erfolg); }
-.badge-inaktiv { background: rgba(220,38,38,0.15); color: var(--farbe-warnung); }

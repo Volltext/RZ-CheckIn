@@ -22,7 +22,7 @@ class RfidScanRequest(BaseModel):
 
 
 class RfidScanResponse(BaseModel):
-    result: Literal["checkin", "checkout", "unknown_card", "card_inactive", "ignored"]
+    result: Literal["checkin", "checkout", "ignored"]
     action_timestamp: datetime | None = None
 
 

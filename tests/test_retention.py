@@ -13,12 +13,11 @@ from app.models import CheckLog, Visitor
 from app.services.attendance import checkin_visitor, checkout_person, record_rfid_scan
 from app.services.retention import purge
 from app.services.settings import set_retention_days
-from tests.factories import make_employee, make_visitor
+from tests.factories import make_visitor
 
 
 def test_purge_removes_only_entries_older_than_retention(db):
     settings = get_settings()
-    employee = make_employee(db, rfid_uid="AABBCCDD")
 
     old = datetime.now(timezone.utc) - timedelta(days=settings.retention_days + 10)
     recent = datetime.now(timezone.utc) - timedelta(days=1)
@@ -29,7 +28,7 @@ def test_purge_removes_only_entries_older_than_retention(db):
     assert result.checklog_entries_removed == 1
 
     remaining = list(
-        db.scalars(select(CheckLog).where(CheckLog.person_type == "employee", CheckLog.person_id == employee.id))
+        db.scalars(select(CheckLog).where(CheckLog.person_type == "employee", CheckLog.person_id == "AABBCCDD"))
     )
     assert len(remaining) == 1
     assert remaining[0].timestamp.replace(tzinfo=timezone.utc) > old.replace(tzinfo=timezone.utc) + timedelta(days=1)
@@ -37,7 +36,6 @@ def test_purge_removes_only_entries_older_than_retention(db):
 
 def test_purge_dry_run_does_not_delete(db):
     settings = get_settings()
-    make_employee(db, rfid_uid="AABBCCDD")
     old = datetime.now(timezone.utc) - timedelta(days=settings.retention_days + 10)
     record_rfid_scan(db, uid="AABBCCDD", timestamp=old)
 
@@ -95,7 +93,6 @@ def test_purge_keeps_visitor_with_recent_entries(db):
 def test_purge_uses_admin_configured_retention_days(db):
     """Die im Admin-Bereich eingestellte Frist (app/services/settings.py) hat Vorrang vor
     dem Startwert aus app/config.py."""
-    make_employee(db, rfid_uid="AABBCCDD")
     ten_days_ago = datetime.now(timezone.utc) - timedelta(days=10)
     record_rfid_scan(db, uid="AABBCCDD", timestamp=ten_days_ago)
 

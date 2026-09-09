@@ -14,11 +14,11 @@ from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
-from app.models import CheckLog, Employee, UnknownScan, Visitor
+from app.models import CheckLog, Visitor
 
 settings = get_settings()
 
-ScanResult = str  # "checkin" | "checkout" | "unknown_card" | "card_inactive" | "ignored"
+ScanResult = str  # "checkin" | "checkout" | "ignored"
 
 
 @dataclass
@@ -31,9 +31,9 @@ class RfidScanOutcome:
 class PresentPerson:
     person_type: str
     person_id: str
-    # Für Mitarbeiter bewusst IMMER None -- intern wird ausschließlich über die
-    # Dienstausweisnummer geführt, es gibt keine gespeicherten Namen, die man hier
-    # anzeigen könnte (siehe app/models.py::Employee). Nur Besucher haben einen Namen.
+    # Für Mitarbeiter bewusst IMMER None -- es gibt kein Mitarbeiter-Register, jede
+    # Karten-UID ist die einzige gespeicherte Kennung (siehe app/models.py::CheckLog).
+    # Nur Besucher haben einen Namen.
     name: str | None
     firma: str | None
     checkin_zeit: datetime
@@ -89,12 +89,8 @@ def list_present(db: Session) -> list[PresentPerson]:
     if not rows:
         return []
 
-    employee_ids = [r.person_id for r in rows if r.person_type == "employee"]
     visitor_ids = [r.person_id for r in rows if r.person_type == "visitor"]
 
-    employees = {}
-    if employee_ids:
-        employees = {e.id: e for e in db.scalars(select(Employee).where(Employee.id.in_(employee_ids)))}
     visitors = {}
     if visitor_ids:
         visitors = {v.id: v for v in db.scalars(select(Visitor).where(Visitor.id.in_(visitor_ids)))}
@@ -105,9 +101,7 @@ def list_present(db: Session) -> list[PresentPerson]:
         if isinstance(checkin_zeit, str):
             checkin_zeit = datetime.fromisoformat(checkin_zeit)
         if row.person_type == "employee":
-            employee = employees.get(row.person_id)
-            if employee is None:
-                continue
+            # Kein Register -- person_id ist direkt die Karten-UID, kein Lookup nötig.
             result.append(
                 PresentPerson(
                     person_type="employee",
@@ -138,37 +132,22 @@ def list_present(db: Session) -> list[PresentPerson]:
     return result
 
 
-def _record_unknown_scan(db: Session, uid: str, seen_at: datetime) -> None:
-    scan = db.get(UnknownScan, uid)
-    if scan is None:
-        scan = UnknownScan(uid=uid, zuletzt_gesehen=seen_at, anzahl=1)
-        db.add(scan)
-    else:
-        scan.zuletzt_gesehen = seen_at
-        scan.anzahl += 1
-
-
 def record_rfid_scan(
     db: Session, *, uid: str, timestamp: datetime | None = None, raum: str | None = None
 ) -> RfidScanOutcome:
-    """Verarbeitet einen RFID-Scan: togglet Checkin/Checkout für bekannte, aktive
-    Mitarbeiter; merkt sich unbekannte UIDs zur späteren Zuordnung im Admin-Bereich.
+    """Verarbeitet einen RFID-Scan: togglet Checkin/Checkout für die gescannte UID.
+
+    Es gibt bewusst kein Mitarbeiter-Register und keine Prüfung, ob die Karte "bekannt"
+    ist -- jede UID darf jederzeit ein-/auschecken, die UID selbst ist die einzige im Log
+    gespeicherte Kennung (siehe app/models.py::CheckLog).
 
     `raum` ist die Agent-ID des scannenden Readers (ein Agent pro Technikraum, siehe
     app/models.py::Agent) und wird unverändert auf den Log-Eintrag übernommen."""
 
+    uid = uid.strip().upper()
     event_time = timestamp or _now()
 
-    employee = db.scalar(select(Employee).where(Employee.rfid_uid == uid))
-    if employee is None:
-        _record_unknown_scan(db, uid, event_time)
-        db.commit()
-        return RfidScanOutcome(result="unknown_card")
-
-    if not employee.aktiv:
-        return RfidScanOutcome(result="card_inactive")
-
-    last = get_last_log_entry(db, "employee", employee.id)
+    last = get_last_log_entry(db, "employee", uid)
     if last is not None:
         last_ts = last.timestamp
         if last_ts.tzinfo is None:
@@ -179,7 +158,7 @@ def record_rfid_scan(
     action = "checkout" if (last is not None and last.action == "checkin") else "checkin"
     entry = CheckLog(
         person_type="employee",
-        person_id=employee.id,
+        person_id=uid,
         action=action,
         source="rfid",
         timestamp=event_time,

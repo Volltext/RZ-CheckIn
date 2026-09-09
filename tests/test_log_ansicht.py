@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from app.services.attendance import checkin_visitor, checkout_person, record_rfid_scan
 from app.services.visitors import delete_visitor
-from tests.factories import make_admin, make_agent, make_employee, make_visitor
+from tests.factories import make_admin, make_agent, make_visitor
 
 
 def _login(client, db):
@@ -15,7 +15,6 @@ def _login(client, db):
 def test_log_ansicht_shows_room_name(client, db):
     _login(client, db)
     make_agent(db, agent_id="kiosk1", bezeichnung="Serverraum A")
-    make_employee(db, rfid_uid="AABBCCDD")
     record_rfid_scan(db, uid="AABBCCDD", raum="kiosk1")
 
     response = client.get("/admin/log")
@@ -25,7 +24,6 @@ def test_log_ansicht_shows_room_name(client, db):
 
 def test_log_ansicht_shows_placeholder_for_deleted_room(client, db):
     _login(client, db)
-    make_employee(db, rfid_uid="AABBCCDD")
     record_rfid_scan(db, uid="AABBCCDD", raum="laengst-geloeschter-agent")
 
     response = client.get("/admin/log")
@@ -41,7 +39,6 @@ def test_deleting_agent_keeps_log_entries_with_room_name(client, db):
     test_log_ansicht_shows_placeholder_for_deleted_room)."""
     _login(client, db)
     make_agent(db, agent_id="kiosk1", bezeichnung="Serverraum A")
-    make_employee(db, rfid_uid="AABBCCDD")
     record_rfid_scan(db, uid="AABBCCDD", raum="kiosk1")
 
     before = client.get("/admin/log")
