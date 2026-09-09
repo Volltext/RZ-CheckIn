@@ -95,6 +95,11 @@ class AgentConfig:
         api_key = get("api_key")
         if not server_url or not agent_id or not api_key:
             raise ValueError("server_url, agent_id und api_key müssen gesetzt sein (agent.ini oder RZ_AGENT_*)")
+        if not server_url.startswith(("http://", "https://")):
+            raise ValueError(
+                f"server_url muss mit http:// oder https:// beginnen (aktuell: {server_url!r}) — "
+                "sonst schlägt jede Anfrage mit 'No connection adapters were found' fehl"
+            )
 
         return cls(
             server_url=server_url,
