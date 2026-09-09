@@ -8,3 +8,8 @@ requests>=2.32
 # reader_agent.py::_try_usb_reset). nfcpy bringt pyusb bereits transitiv mit (USB-Backend
 # für ACR122U/PN532), hier explizit als direkte Abhängigkeit, weil wir es selbst nutzen.
 pyusb>=1.2
+# Liefert pyusb die eigentliche libusb-Bibliothek gleich mit (fertig kompiliert für
+# Windows x86/x64/arm64, macOS, Linux) -- ohne dieses Paket findet pyusb unter Windows
+# oft keine passende libusb-1.0.dll (Zadig installiert nur den Kernel-Treiber, keine
+# systemweite DLL) und meldet "No backend available", der USB-Reset läuft dann nie.
+libusb>=1.0.26
