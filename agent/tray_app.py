@@ -69,6 +69,8 @@ def _save_raw_config(path: Path, values: dict[str, str]) -> None:
         ("verify_tls", "true"),
         ("spool_path", "agent_spool.jsonl"),
         ("log_path", "reader_agent.log"),
+        ("reset_after_failures", "3"),
+        ("reset_command", ""),
     ):
         parser["agent"].setdefault(key, default)
     with path.open("w", encoding="utf-8") as f:

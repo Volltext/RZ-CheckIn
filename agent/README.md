@@ -56,6 +56,50 @@ USB-Seriell/UART melden (`reader = tty:COM3:pn532`, siehe COM-Port im Geräte-Ma
 für die ist kein Zadig/Treiberwechsel nötig, sie sind aber nicht die hier beschaffte
 Referenzhardware.
 
+### Automatischer Reader-Reset bei hängendem Gerät
+
+Manche ACR122U-Exemplare hängen sich nach einem USB-Aussetzer (z.B. USB-Selective-
+Suspend, ein wackliges Kabel, ein zu langer/über einen Hub geführter Anschluss)
+dauerhaft auf: der Agent versucht zwar alle 5s neu zu verbinden, aber jeder Versuch
+scheitert weiterhin (`failed to retrieve ACR122U version string` / `insufficient data
+for decoding chip response`) -- nur physisches Aus-/Einstecken hilft. Damit das nicht
+jedes Mal ein manuelles Eingreifen am Kiosk-PC braucht, versucht der Agent von sich aus
+gegenzusteuern (siehe `reset_after_failures`/`reset_command` in `agent.ini.example`):
+
+1. Nach `reset_after_failures` Fehlversuchen IN FOLGE (Standard 3, `0` deaktiviert)
+   löst der Agent selbst einen **USB-Reset** über pyusb aus (`agent/reader_agent.py::
+   _try_usb_reset`) -- softwareseitig dieselbe Art Reset, die auch beim Aus-/Einstecken
+   passiert, ohne dass jemand am Gerät sein muss. Reicht bei vielen Fällen bereits aus.
+2. Hilft das nicht, kann zusätzlich `reset_command` gesetzt werden: ein beliebiger
+   Shell-Befehl, der NACH dem erfolglosen USB-Reset läuft. Unter Windows bietet sich ein
+   Deaktivieren+Aktivieren des Geräts im Geräte-Manager an, z.B. per
+   [devcon](https://learn.microsoft.com/windows-hardware/drivers/devtest/devcon)
+   (Teil des Windows Driver Kit, portabel kopierbar):
+   ```ini
+   reset_command = C:\rz-checkin-agent\devcon.exe restart "USB\VID_072F&PID_2200*"
+   ```
+   Alternative ohne WDK-Download: das seit Windows 10 eingebaute `pnputil`, das
+   allerdings die genaue Geräte-Instanz-ID statt eines Hardware-ID-Musters braucht
+   (einmalig im Geräte-Manager unter "Details" → "Geräteinstanzpfad" ablesen, oder per
+   `pnputil /enum-devices /class USB`):
+   ```ini
+   reset_command = powershell -Command "pnputil /disable-device '<Geräteinstanzpfad>'; Start-Sleep 2; pnputil /enable-device '<Geräteinstanzpfad>'"
+   ```
+   Der Befehl läuft mit den Rechten des Agent-Prozesses (bei nssm i.d.R. `LocalSystem`,
+   das reicht für devcon/pnputil ohne weitere Berechtigungen aus).
+
+Beide Mechanismen sind bewusst best-effort: schlägt der Reset fehl, läuft die normale
+5s-Retry-Schleife einfach weiter, der Agent stürzt dabei nie ab. Ist auch der
+Hard-Reset-Befehl nicht genug, bleibt weiterhin nur das physische Aus-/Einstecken --
+das deutet dann eher auf ein Kabel-/Port-/Energieverwaltungsproblem hin (siehe unten).
+
+**Zusätzlich empfohlen** (unabhängig vom automatischen Reset, siehe README-Hauptteil
+"Kiosk-PC"-Abschnitt): USB-Energieverwaltung für den Anschluss des Readers deaktivieren
+(Geräte-Manager → USB-Root-Hub bzw. "ACS ACR122U PICC Interface" → Eigenschaften →
+Energieverwaltung → Haken bei "Computer kann das Gerät ausschalten..." entfernen) sowie
+einen direkten USB-2-Port am Mainboard statt Hub/USB-3-Port verwenden -- das beugt dem
+Aufhängen von vornherein vor, statt es nur nachträglich zu beheben.
+
 ## 2. Python-Laufzeit (nur für die Kommandozeilen-Variante)
 
 Wer die fertige `RZ-CheckIn-Agent.exe` einsetzt (Abschnitt 5), braucht diesen Schritt

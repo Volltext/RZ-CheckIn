@@ -66,6 +66,17 @@ class AgentConfig:
     verify_tls: bool = True
     spool_path: str = "agent_spool.jsonl"
     log_path: str | None = "reader_agent.log"
+    # Manche Reader (v.a. der ACR122U über libusbK) verabschieden sich nach einem
+    # USB-Aussetzer dauerhaft und kommen durch bloßes Neuöffnen nicht mehr zurück -- erst
+    # ein echter USB-Reset (oder physisches Aus-/Einstecken) hilft. reset_after_failures
+    # ist die Anzahl aufeinanderfolgender Fehlversuche, bevor der Agent von sich aus einen
+    # USB-Reset probiert (siehe _try_usb_reset); 0 = deaktiviert.
+    reset_after_failures: int = 3
+    # Reicht der (weiche) USB-Reset nicht aus, kann hier ein Shell-Befehl hinterlegt
+    # werden, der stattdessen läuft (z.B. ein devcon/pnputil-Aufruf unter Windows, der das
+    # Gerät im Geräte-Manager deaktiviert und wieder aktiviert -- siehe agent/README.md).
+    # Läuft NACH dem erfolglosen USB-Reset, nicht statt dessen. None/leer = kein Hard-Reset.
+    reset_command: str | None = None
 
     @classmethod
     def from_file(cls, path: str) -> "AgentConfig":
@@ -121,6 +132,8 @@ class AgentConfig:
             verify_tls=get("verify_tls", True, as_bool),
             spool_path=get("spool_path", "agent_spool.jsonl"),
             log_path=get("log_path", "reader_agent.log"),
+            reset_after_failures=get("reset_after_failures", 3, int),
+            reset_command=get("reset_command", None),
         )
 
     @property
@@ -265,9 +278,71 @@ class BackgroundLoop(threading.Thread):
             self.stop_event.wait(self.interval)
 
 
+def _parse_usb_vid_pid(reader: str) -> tuple[int, int] | None:
+    """Extrahiert Vendor/Product-ID aus einem nfcpy-Pfad wie 'usb:072f:2200'. Liefert
+    None für Pfade ohne feste IDs (z.B. nur 'usb', 'tty:...', 'usb:001:027' -- Letzteres
+    ist ein Bus:Device-Pfad, keine Vendor:Product-ID, ändert sich bei jedem Neustecken)."""
+    parts = reader.split(":")
+    if len(parts) != 3 or parts[0] != "usb":
+        return None
+    try:
+        return int(parts[1], 16), int(parts[2], 16)
+    except ValueError:
+        return None
+
+
+def _try_usb_reset(reader: str) -> bool:
+    """Best-effort USB-Reset des Readers über pyusb, BEVOR nfcpy es erneut versucht.
+    Manche Reader (siehe reset_after_failures-Kommentar bei AgentConfig) reagieren auf
+    ein simples Neuöffnen nicht mehr, lassen sich aber per USB-Reset-Kommando (dieselbe
+    Art Reset, die auch beim Aus-/Einstecken passiert) ohne physischen Eingriff wieder
+    aufwecken. Gibt True zurück, wenn ein Reset versucht wurde (nicht: ob er geholfen
+    hat -- das zeigt erst der nächste Verbindungsversuch)."""
+    vid_pid = _parse_usb_vid_pid(reader)
+    if vid_pid is None:
+        return False
+    try:
+        import usb.core  # pyusb -- Abhängigkeit von nfcpy, hier direkt genutzt
+    except ImportError:
+        LOG.warning("USB-Reset übersprungen: pyusb nicht verfügbar")
+        return False
+    try:
+        device = usb.core.find(idVendor=vid_pid[0], idProduct=vid_pid[1])
+        if device is None:
+            LOG.warning("USB-Reset übersprungen: Gerät %s aktuell nicht auffindbar", reader)
+            return False
+        device.reset()
+        LOG.info("USB-Reset für %s ausgeführt, warte auf Neuanmeldung des Geräts", reader)
+        return True
+    except Exception as exc:  # noqa: BLE001 - Reset ist best-effort, darf die Schleife nie beenden
+        LOG.warning("USB-Reset für %s fehlgeschlagen: %s", reader, exc)
+        return False
+
+
+def _try_reset_command(command: str) -> None:
+    """Führt den konfigurierten Hard-Reset-Befehl aus (z.B. devcon/pnputil unter
+    Windows, siehe agent/README.md). Läuft nur, wenn _try_usb_reset nicht ausgereicht
+    hat -- Fehler landen im Log, dürfen die Reader-Schleife aber nie beenden."""
+    import subprocess  # lokaler Import: nur gebraucht, wenn reset_command gesetzt ist
+
+    LOG.info("Führe reset_command aus: %s", command)
+    try:
+        result = subprocess.run(command, shell=True, capture_output=True, text=True, timeout=30)
+        if result.returncode != 0:
+            LOG.warning(
+                "reset_command endete mit Exit-Code %s: %s", result.returncode, result.stderr.strip()[:500]
+            )
+    except Exception as exc:  # noqa: BLE001
+        LOG.warning("reset_command konnte nicht ausgeführt werden: %s", exc)
+
+
 def run_reader_loop(config: AgentConfig, spool: Spool, stop_event: threading.Event) -> None:
     """Endlosschleife über nfcpy. Reader-Aussetzer (Kabel ab, PC im Standby, ...) führen
-    zu einem Reconnect-Versuch statt zum Absturz des Agenten."""
+    zu einem Reconnect-Versuch statt zum Absturz des Agenten. Hilft ein einfaches
+    Neuöffnen nach mehreren Versuchen in Folge nicht (siehe AgentConfig.reset_after_
+    failures), wird zusätzlich ein USB-Reset (und optional ein konfigurierter
+    Hard-Reset-Befehl) versucht, damit der Agent sich ohne manuelles Aus-/Einstecken
+    selbst erholen kann."""
     import nfc  # lokaler Import: --simulate-uid soll ohne diese Abhängigkeit laufen
 
     def on_connect(tag) -> bool:
@@ -276,17 +351,43 @@ def run_reader_loop(config: AgentConfig, spool: Spool, stop_event: threading.Eve
         time.sleep(config.scan_cooldown)
         return True  # True = weiter auf die nächste Karte warten
 
+    consecutive_failures = 0
+
+    def _handle_failure(exc: Exception) -> None:
+        nonlocal consecutive_failures
+        consecutive_failures += 1
+        LOG.warning(
+            "Reader nicht erreichbar (%s) — neuer Versuch in 5s [%d/%d bis Reset-Versuch]: %s",
+            config.reader,
+            consecutive_failures,
+            config.reset_after_failures,
+            exc,
+        )
+        if config.reset_after_failures > 0 and consecutive_failures >= config.reset_after_failures:
+            consecutive_failures = 0
+            _try_usb_reset(config.reader)
+            if config.reset_command:
+                # Dem Gerät nach dem (weichen) USB-Reset kurz Zeit zum Neuanmelden geben,
+                # bevor zusätzlich der deutlich invasivere Hard-Reset-Befehl greift.
+                stop_event.wait(5)
+                _try_reset_command(config.reset_command)
+            # Nach einem Reset braucht das Gerät etwas länger zum Neuanmelden als die
+            # normalen 5s zwischen Versuchen.
+            stop_event.wait(5)
+        else:
+            stop_event.wait(5)
+
     while not stop_event.is_set():
         try:
             with nfc.ContactlessFrontend(config.reader) as clf:
                 LOG.info("Reader verbunden: %s", config.reader)
+                consecutive_failures = 0
                 clf.connect(rdwr={"on-connect": on_connect}, terminate=stop_event.is_set)
         except OSError as exc:
-            LOG.warning("Reader nicht erreichbar (%s) — neuer Versuch in 5s: %s", config.reader, exc)
-            stop_event.wait(5)
-        except Exception:  # noqa: BLE001
-            LOG.exception("Unerwarteter Fehler in der Reader-Schleife — neuer Versuch in 5s")
-            stop_event.wait(5)
+            _handle_failure(exc)
+        except Exception as exc:  # noqa: BLE001
+            LOG.exception("Unerwarteter Fehler in der Reader-Schleife")
+            _handle_failure(exc)
 
 
 class AgentRuntime:
