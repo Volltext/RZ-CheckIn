@@ -4,3 +4,7 @@
 nfcpy>=1.0.4
 pyserial>=3.5
 requests>=2.32
+# Für den automatischen USB-Reset bei einem hängenden Reader (siehe
+# reader_agent.py::_try_usb_reset). nfcpy bringt pyusb bereits transitiv mit (USB-Backend
+# für ACR122U/PN532), hier explizit als direkte Abhängigkeit, weil wir es selbst nutzen.
+pyusb>=1.2

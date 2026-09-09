@@ -44,3 +44,17 @@ verify_tls = true
 ; Dateien im Arbeitsverzeichnis des Agenten (bei nssm i.d.R. der Installationsordner).
 spool_path = agent_spool.jsonl
 log_path = reader_agent.log
+
+; Manche Reader (v.a. der ACR122U über libusbK) hängen sich nach einem USB-Aussetzer
+; dauerhaft auf und kommen durch bloßes Neuöffnen nicht mehr zurück -- nach so vielen
+; Fehlversuchen IN FOLGE probiert der Agent von sich aus einen USB-Reset (dieselbe Art
+; Reset wie beim Aus-/Einstecken, aber ohne physischen Eingriff). 0 = deaktiviert.
+reset_after_failures = 3
+
+; Reicht der USB-Reset nicht aus, kann hier zusätzlich ein Befehl hinterlegt werden, der
+; NACH dem erfolglosen USB-Reset läuft -- z.B. ein devcon/pnputil-Aufruf unter Windows,
+; der das Gerät im Geräte-Manager deaktiviert und wieder aktiviert (siehe agent/README.md
+; Abschnitt "Automatischer Reader-Reset"). Läuft mit den Rechten des Agent-Prozesses
+; (bei nssm i.d.R. LocalSystem) -- devcon/pnputil brauchen dafür keine zusätzliche
+; Berechtigung. Leer/auskommentiert = kein Hard-Reset-Befehl.
+; reset_command = C:\rz-checkin-agent\devcon.exe restart "USB\VID_072F&PID_2200*"
