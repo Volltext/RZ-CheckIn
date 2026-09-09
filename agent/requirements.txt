@@ -4,12 +4,15 @@
 nfcpy>=1.0.4
 pyserial>=3.5
 requests>=2.32
-# Für den automatischen USB-Reset bei einem hängenden Reader (siehe
-# reader_agent.py::_try_usb_reset). nfcpy bringt pyusb bereits transitiv mit (USB-Backend
-# für ACR122U/PN532), hier explizit als direkte Abhängigkeit, weil wir es selbst nutzen.
+# Rückfallebene für den automatischen USB-Reset bei einem hängenden Reader (siehe
+# reader_agent.py::_try_usb_reset). Der Reset läuft in erster Linie über libusb1/usb1 --
+# die Bibliothek, die nfcpy selbst für den USB-Zugriff nutzt (nfc/clf/transport.py:
+# "import usb1 as libusb") und die daher mit nfcpy ohnehin installiert wird. pyusb ist
+# eine komplett andere Bibliothek mit eigener DLL-Suche; sie bleibt nur als zweiter
+# Versuch drin, falls usb1 den Reset auf einem Gerät nicht durchbekommt.
 pyusb>=1.2
 # Liefert pyusb die eigentliche libusb-Bibliothek gleich mit (fertig kompiliert für
 # Windows x86/x64/arm64, macOS, Linux) -- ohne dieses Paket findet pyusb unter Windows
 # oft keine passende libusb-1.0.dll (Zadig installiert nur den Kernel-Treiber, keine
-# systemweite DLL) und meldet "No backend available", der USB-Reset läuft dann nie.
+# systemweite DLL) und meldet "No backend available".
 libusb>=1.0.26
