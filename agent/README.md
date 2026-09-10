@@ -13,8 +13,10 @@ Es gibt zwei Varianten, die dieselbe Kernlogik (`reader_agent.py`) nutzen:
 - **GUI-Variante** (`tray_app.py`, als fertige Programmdatei `RZ-CheckIn-Agent.exe` bzw.
   `rz-checkin-agent`): Symbol im Infobereich/Systray (grün = Verbindung ok, grau =
   Verbindungsstörung), Kontextmenü und ein kleines Einstellungen-Fenster zum Bearbeiten
-  von Server-URL/Agent-ID/API-Key/Reader, ganz ohne Texteditor/Konsole. Gedacht für den
-  normalen Autostart des Kiosk-Benutzers. Siehe Abschnitt 5 (Windows) und 9 (Linux).
+  von Server-URL/Agent-ID/API-Key/Kartenleser, ganz ohne Texteditor/Konsole. Der
+  angeschlossene Kartenleser wird dabei erkannt und vorausgewählt, und der Autostart
+  lässt sich per Häkchen ein- und ausschalten. Gedacht für den normalen Autostart des
+  Kiosk-Benutzers. Siehe Abschnitt 5 (Windows) und 9 (Linux).
 
 **Windows oder Linux?** Beide Plattformen sind gleichwertig unterstützt und nutzen
 dieselben Quelldateien; gebaut wird nur jeweils auf der Zielplattform (PyInstaller kann
@@ -195,6 +197,15 @@ Internetzugriff hat.
 3. `server_url`, `agent_id`, `api_key` und `reader` (`usb:072f:2200` für den ACR122U-A9)
    eintragen.
 
+Im Einstellungen-Fenster ist `reader` ein **Auswahlfeld**: angeschlossene Leser stehen
+oben ("ACS ACR122U-A9 — angeschlossen") und sind vorausgewählt, darunter folgen nfcpys
+Auto-Erkennung (`usb`), die bekannten Lesermodelle und der Eintrag "Benutzerdefiniert",
+der das Feld zum freien Eintippen leert. Unter dem Feld steht jeweils der Wert, der
+tatsächlich in der `agent.ini` landet. Erkannt wird über die USB-Geräteliste, ohne den
+Leser zu öffnen — er taucht dort also auch dann auf, wenn ihn (noch) ein Kernel-Treiber
+belegt oder die Zugriffsrechte fehlen. "Suchen" liest die Liste neu ein, praktisch nach
+dem Einstecken.
+
 Test ohne Hardware (prüft Konfiguration + Verbindung zum Server):
 
 ```powershell
@@ -254,7 +265,13 @@ sieht PyInstaller beim Bauen nicht. Mit aktuellem `build_exe.ps1` neu bauen.
 
 ### 5.2 Autostart einrichten
 
-Einfachste Variante: eine Verknüpfung zur `.exe` in den Autostart-Ordner des
+Einfachste Variante: im Einstellungen-Fenster das Häkchen **"Beim Anmelden dieses
+Benutzers automatisch starten"** setzen. Das trägt die Programmdatei unter Windows im
+Registry-Schlüssel `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` ein (dasselbe,
+was eine Verknüpfung im Autostart-Ordner bewirkt) und lässt sich dort genauso wieder
+abwählen — Administratorrechte braucht es dafür nicht.
+
+Von Hand geht es weiterhin: eine Verknüpfung zur `.exe` in den Autostart-Ordner des
 Kiosk-Benutzerkontos legen (`Win+R` → `shell:startup`). Für mehr Kontrolle
 (Wiederanlauf bei Absturz, Start auch ohne Login) alternativ über die Aufgabenplanung
 (`taskschd.msc`) einen Trigger "Bei Anmeldung" mit Aktion `RZ-CheckIn-Agent.exe`
@@ -376,7 +393,13 @@ Hand angelegt (`agent.ini.example` als Vorlage).
 
 ### 9.2 Hardware: ACR122U-A9 unter Linux zugänglich machen
 
-Drei Dinge stehen dem direkten USB-Zugriff durch nfcpy typischerweise im Weg:
+**Muss der Treiber getauscht werden wie unter Windows? Nein.** Ein Zadig-Äquivalent gibt
+es unter Linux nicht und wird auch nicht gebraucht: libusb spricht USB-Geräte direkt über
+den Kernel an, ohne dass ein herstellerspezifischer Treiber installiert oder ersetzt
+werden müsste. "Out of the box" heißt das aber trotzdem nicht — statt eines Treiberwechsels
+sind drei andere Kleinigkeiten zu erledigen, die `linux/install.sh` in einem Aufruf
+abräumt. Es geht dabei ausschließlich um Zugriffsrechte und darum, das Gerät wieder
+freizugeben; installiert oder ersetzt wird nichts:
 
 1. **Zugriffsrechte.** Ohne udev-Regel gehört das USB-Gerät `root`, der Agent bekommt
    `Permission denied`. Die mitgelieferte Regel
@@ -392,8 +415,12 @@ Drei Dinge stehen dem direkten USB-Zugriff durch nfcpy typischerweise im Weg:
    er nicht gebraucht: `sudo systemctl disable --now pcscd.socket pcscd.service` bzw.
    `install.sh --disable-pcscd`.
 
-Ein Zadig-Äquivalent gibt es unter Linux nicht und wird auch nicht gebraucht — libusb
-spricht das Gerät nach diesen drei Schritten direkt an.
+Der Vergleich zu Windows: dort **ersetzt** Zadig den CCID-Treiber durch libusbK, hier
+wird der störende Kernel-Treiber lediglich **nicht geladen**. Beides hat denselben Zweck —
+den PC/SC-Weg aus dem Spiel nehmen, damit nfcpy direkt über libusb sprechen kann. Ob es
+geklappt hat, zeigt das Einstellungen-Fenster: taucht der Leser dort als "angeschlossen"
+auf, ist er am USB sichtbar; kommt trotzdem `Permission denied` oder `Resource busy` ins
+Log, fehlt einer der drei Schritte (siehe 9.7).
 
 *PN532-Board statt ACR122U*: Das meldet sich als USB-Seriell-Gerät, in der `agent.ini`
 dann z.B. `reader = tty:USB0:pn532` (`/dev/ttyUSB0`). Statt der udev-Regel braucht es
@@ -455,8 +482,17 @@ Das Skript
 
 Danach einmal ab- und wieder anmelden (Gruppenmitgliedschaften greifen erst in einer
 neuen Sitzung), den Agenten starten und im Einstellungen-Fenster Server-URL, Agent-ID,
-API-Key und Reader eintragen — genau wie unter Windows. Ab der nächsten Anmeldung
-startet er automatisch mit.
+API-Key und Kartenleser eintragen — genau wie unter Windows; der angeschlossene Leser ist
+dort bereits vorausgewählt. Ab der nächsten Anmeldung startet er automatisch mit.
+
+Den Autostart-Eintrag schreibt `install.sh` nach
+`~/.config/autostart/rz-checkin-agent.desktop`. **Dieselbe** Datei legt auch das Häkchen
+"Beim Anmelden dieses Benutzers automatisch starten" im Einstellungen-Fenster an bzw.
+entfernt sie wieder — beide Wege meinen also denselben Eintrag, und ein per `install.sh`
+eingerichteter Autostart zeigt sich im Fenster als gesetztes Häkchen. Wer den Agenten
+ohne `install.sh` betreibt (etwa aus den Quellen), kann den Autostart damit komplett im
+Fenster ein- und ausschalten; udev-Regel und Modul-Blacklist bleiben davon unberührt und
+sind weiterhin einmalig einzurichten.
 
 Rückgängig machen: `sudo ./linux/install.sh --uninstall` (Konfiguration und Log bleiben
 erhalten).

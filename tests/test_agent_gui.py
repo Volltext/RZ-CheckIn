@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import stat
 import sys
+import types
 from pathlib import Path
 
 import pytest
@@ -256,3 +257,211 @@ def test_speichern_laesst_unbekannte_werte_stehen(tmp_path):
     gelesen = tray_app._load_raw_config(ziel)
     assert gelesen["agent_id"] == "neu"
     assert gelesen["reset_command"] == "/usr/local/bin/usbreset 072f:2200"
+
+
+# --------------------------------------------------------------------------------------
+# reader_detect: Erkennung angeschlossener Kartenleser fürs Auswahlfeld
+# --------------------------------------------------------------------------------------
+
+import reader_detect  # noqa: E402
+
+ACR122U = (0x072F, 0x2200)
+
+
+def test_angeschlossener_leser_steht_oben_und_ist_als_solcher_erkennbar(monkeypatch):
+    monkeypatch.setattr(reader_detect, "usb_device_ids", lambda: [(0x1D6B, 0x0002), ACR122U])
+    monkeypatch.setattr(reader_detect, "serial_port_options", list)
+
+    optionen = reader_detect.reader_options()
+    assert optionen[0].value == "usb:072f:2200"
+    assert optionen[0].detected is True
+    assert "angeschlossen" in optionen[0].label and "nicht angeschlossen" not in optionen[0].label
+    # Nicht doppelt: der erkannte Leser taucht nicht nochmal in der Liste der bekannten,
+    # gerade nicht angeschlossenen Geräte auf.
+    assert [o.value for o in optionen].count("usb:072f:2200") == 1
+    # Ein USB-Hub (1d6b:0002) ist kein Kartenleser und wird nicht angeboten.
+    assert not any(o.value == "usb:1d6b:0002" for o in optionen)
+
+
+def test_ohne_erkannten_leser_gibt_es_trotzdem_eine_auswahl(monkeypatch):
+    monkeypatch.setattr(reader_detect, "usb_device_ids", list)
+    monkeypatch.setattr(reader_detect, "serial_port_options", list)
+
+    optionen = reader_detect.reader_options()
+    werte = [o.value for o in optionen]
+    assert reader_detect.AUTO_VALUE in werte           # nfcpys eigene Suche
+    assert "usb:072f:2200" in werte                    # Referenzhardware zum Auswählen
+    assert optionen[-1].label == reader_detect.CUSTOM_LABEL
+    assert not any(o.detected for o in optionen)
+
+
+def test_eingetragener_wert_bleibt_erhalten(monkeypatch):
+    """Ein Wert aus der agent.ini darf nie verloren gehen, auch wenn das Gerät gerade
+    nicht angeschlossen ist oder gar nicht zur Erkennungsliste gehört."""
+    monkeypatch.setattr(reader_detect, "usb_device_ids", list)
+    monkeypatch.setattr(reader_detect, "serial_port_options", list)
+
+    optionen = reader_detect.reader_options("udp:192.168.0.5:54321")
+    assert optionen[0].value == "udp:192.168.0.5:54321"
+    # Bekannte Geräte werden auch dann beim Namen genannt, wenn sie gerade fehlen.
+    optionen = reader_detect.reader_options("usb:072f:2200")
+    assert optionen[0].label.startswith("ACS ACR122U")
+    assert "nicht angeschlossen" in optionen[0].label
+
+
+def test_serielle_schnittstellen_werden_in_nfcpy_pfade_uebersetzt(monkeypatch):
+    class FakePort:
+        def __init__(self, device, description=""):
+            self.device = device
+            self.description = description
+
+    fake_list_ports = types.SimpleNamespace(
+        comports=lambda: [FakePort("/dev/ttyUSB0", "CP2102 USB to UART"), FakePort("COM3")]
+    )
+    monkeypatch.setitem(sys.modules, "serial", types.ModuleType("serial"))
+    monkeypatch.setitem(sys.modules, "serial.tools", types.ModuleType("serial.tools"))
+    monkeypatch.setitem(sys.modules, "serial.tools.list_ports", fake_list_ports)
+
+    werte = [o.value for o in reader_detect.serial_port_options()]
+    assert werte == ["tty:USB0:pn532", "tty:COM3:pn532"]
+
+
+def test_usb_erkennung_ohne_usb1_liefert_leere_liste(monkeypatch):
+    """Fehlt die USB-Bibliothek, darf das Fenster trotzdem aufgehen."""
+    monkeypatch.setitem(sys.modules, "usb1", None)
+    assert reader_detect.usb_device_ids() == []
+
+
+def test_beschriftung_und_wert_lassen_sich_umrechnen(monkeypatch):
+    monkeypatch.setattr(reader_detect, "usb_device_ids", lambda: [ACR122U])
+    monkeypatch.setattr(reader_detect, "serial_port_options", list)
+    optionen = reader_detect.reader_options()
+
+    beschriftung = reader_detect.label_for_value(optionen, "usb:072f:2200")
+    assert reader_detect.value_for_label(optionen, beschriftung) == "usb:072f:2200"
+    # Selbst eingetippte Werte gehen unverändert durch (inkl. abgeschnittener Leerzeichen)
+    assert reader_detect.value_for_label(optionen, "  usb:1234:5678 ") == "usb:1234:5678"
+
+
+# --------------------------------------------------------------------------------------
+# autostart: Häkchen "beim Anmelden automatisch starten"
+# --------------------------------------------------------------------------------------
+
+import autostart  # noqa: E402
+
+
+@pytest.fixture
+def linux_home(tmp_path, monkeypatch, linux):
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+    monkeypatch.delenv(agent_paths.CONFIG_ENV_VAR, raising=False)
+    return tmp_path
+
+
+def test_autostart_linux_ein_und_ausschalten(linux_home):
+    ziel = autostart.desktop_file()
+    assert autostart.is_enabled() is False
+
+    autostart.enable()
+    assert autostart.is_enabled() is True
+    inhalt = ziel.read_text(encoding="utf-8")
+    assert inhalt.startswith("[Desktop Entry]")
+    assert "Exec=" in inhalt and "X-GNOME-Autostart-enabled=true" in inhalt
+
+    autostart.disable()
+    assert autostart.is_enabled() is False
+    assert not ziel.exists()
+
+
+def test_autostart_linux_nutzt_denselben_dateinamen_wie_install_sh(linux_home):
+    """install.sh legt ~/.config/autostart/rz-checkin-agent.desktop an -- beide Wege
+    müssen denselben Eintrag meinen, sonst zeigt die Checkbox etwas anderes an, als
+    tatsächlich eingerichtet ist."""
+    skript = Path(__file__).resolve().parents[1] / "agent" / "linux" / "install.sh"
+    assert f"{autostart.desktop_file().name}" in skript.read_text(encoding="utf-8")
+
+
+def test_autostart_uebernimmt_die_gewaehlte_konfigurationsdatei(linux_home, monkeypatch):
+    """Wurde der Agent mit einer bestimmten agent.ini gestartet, muss der Autostart
+    dieselbe benutzen -- sonst startet er beim nächsten Anmelden unkonfiguriert."""
+    monkeypatch.setenv(agent_paths.CONFIG_ENV_VAR, "/etc/rz-checkin-agent/agent.ini")
+    autostart.enable()
+    assert "--config /etc/rz-checkin-agent/agent.ini" in autostart.desktop_file().read_text(encoding="utf-8")
+
+
+def test_autostart_meldet_fehler_statt_stillschweigend_zu_scheitern(linux_home, monkeypatch):
+    def kaputt(*args, **kwargs):
+        raise OSError("Dateisystem schreibgeschützt")
+
+    monkeypatch.setattr(Path, "mkdir", kaputt)
+    with pytest.raises(autostart.AutostartError):
+        autostart.enable()
+
+
+def test_autostart_auf_macos_nicht_unterstuetzt(monkeypatch):
+    monkeypatch.setattr(sys, "platform", "darwin")
+    assert autostart.supported() is False
+    assert autostart.is_enabled() is False
+    with pytest.raises(autostart.AutostartError):
+        autostart.enable()
+
+
+class FakeWinreg:
+    """Nachbildung der Teile von winreg, die autostart.py nutzt -- damit lässt sich der
+    Windows-Weg (HKCU-Run-Schlüssel) auch auf einem Linux-Testrechner prüfen."""
+
+    HKEY_CURRENT_USER = "HKCU"
+    KEY_SET_VALUE = 2
+    REG_SZ = 1
+
+    def __init__(self):
+        self.werte: dict[str, str] = {}
+
+    class _Key:
+        def __init__(self, store):
+            self.store = store
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+    def OpenKey(self, root, pfad, reserved=0, access=0):  # noqa: N802 - winreg-Schreibweise
+        return self._Key(self.werte)
+
+    def CreateKeyEx(self, root, pfad, reserved=0, access=0):  # noqa: N802
+        return self._Key(self.werte)
+
+    def QueryValueEx(self, key, name):  # noqa: N802
+        if name not in key.store:
+            raise FileNotFoundError(name)
+        return key.store[name], self.REG_SZ
+
+    def SetValueEx(self, key, name, reserved, typ, wert):  # noqa: N802
+        key.store[name] = wert
+
+    def DeleteValue(self, key, name):  # noqa: N802
+        if name not in key.store:
+            raise FileNotFoundError(name)
+        del key.store[name]
+
+
+def test_autostart_windows_nutzt_den_run_schluessel(monkeypatch, windows):
+    fake = FakeWinreg()
+    monkeypatch.setitem(sys.modules, "winreg", fake)
+    monkeypatch.delenv(agent_paths.CONFIG_ENV_VAR, raising=False)
+
+    assert autostart.is_enabled() is False
+    autostart.enable()
+    assert autostart.is_enabled() is True
+    assert "tray_app.py" in fake.werte[autostart.WINDOWS_VALUE_NAME]  # Startbefehl hinterlegt
+
+    autostart.disable()
+    assert autostart.is_enabled() is False
+    autostart.disable()  # zweimal Ausschalten darf nicht scheitern
+
+
+def test_autostart_ort_wird_genannt(windows, monkeypatch):
+    assert "HKCU" in autostart.location()
+    monkeypatch.setattr(sys, "platform", "linux")
+    assert autostart.location().endswith("rz-checkin-agent.desktop")

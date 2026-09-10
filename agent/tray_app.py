@@ -46,6 +46,8 @@ import threading
 from pathlib import Path
 
 import agent_paths
+import autostart
+import reader_detect
 from reader_agent import AgentConfig, AgentRuntime, _setup_logging
 
 LOG = logging.getLogger("tray_app")
@@ -77,7 +79,7 @@ _FIELDS = [
     ("server_url", "Server-URL", "https://rz-checkin.intern.example.org"),
     ("agent_id", "Agent-ID", "kiosk1"),
     ("api_key", "API-Key", ""),
-    ("reader", "Reader (nur der Wert, z.B. usb:072f:2200 für ACR122U)", "usb:072f:2200"),
+    ("reader", "Kartenleser", "usb:072f:2200"),
 ]
 
 # Wie oft das Fenster den aktuellen Status abfragt. Die Statusmeldung kommt aus einem
@@ -92,6 +94,15 @@ def status_text(status: str) -> str:
 
 def status_color(status: str) -> str:
     return _STATUS_COLORS.get(status, _STATUS_COLORS[STATUS_STOPPED])
+
+
+def display_path(path: Path) -> str:
+    """Pfad fürs Fenster: das Home-Verzeichnis wird zu "~" gekürzt, damit aus
+    /home/kiosk/.config/rz-checkin-agent/agent.ini die lesbare Kurzform wird."""
+    try:
+        return "~/" + str(Path(path).relative_to(Path.home())).replace("\\", "/")
+    except (ValueError, RuntimeError):
+        return str(path)
 
 
 def _load_raw_config(path: Path) -> dict[str, str]:
@@ -384,11 +395,14 @@ class AgentWindow:
         current = _load_raw_config(app.config_path)
         for key, label, _placeholder in _FIELDS:
             ttk.Label(frame, text=label).grid(column=0, row=row, sticky="w", pady=4)
-            show = "*" if key == "api_key" else None
-            entry = ttk.Entry(frame, width=42, show=show)
-            entry.insert(0, current.get(key, ""))
-            entry.grid(column=1, row=row, pady=4, padx=(8, 0))
-            self.entries[key] = entry
+            if key == "reader":
+                self._build_reader_row(frame, row, current.get(key, ""))
+            else:
+                show = "*" if key == "api_key" else None
+                entry = ttk.Entry(frame, width=46, show=show)
+                entry.insert(0, current.get(key, ""))
+                entry.grid(column=1, row=row, pady=4, padx=(8, 0), sticky="w")
+                self.entries[key] = entry
             row += 1
 
         ttk.Label(
@@ -401,11 +415,24 @@ class AgentWindow:
 
         ttk.Label(
             frame,
-            text=f"Konfiguration: {app.config_path}",
+            text=f"Konfiguration: {display_path(app.config_path)}",
             foreground="#666666",
-            wraplength=460,
-        ).grid(column=0, row=row, columnspan=2, sticky="w", pady=(0, 12))
+            wraplength=520,
+        ).grid(column=0, row=row, columnspan=2, sticky="w", pady=(0, 8))
         row += 1
+
+        # Autostart lässt sich hier umlegen, statt ihn unter Windows von Hand in den
+        # Autostart-Ordner zu legen bzw. unter Linux install.sh zu bemühen.
+        self._autostart_var = tk.BooleanVar(value=autostart.is_enabled() if autostart.supported() else False)
+        if autostart.supported():
+            self._autostart_box = ttk.Checkbutton(
+                frame,
+                text="Beim Anmelden dieses Benutzers automatisch starten",
+                variable=self._autostart_var,
+                command=self._toggle_autostart,
+            )
+            self._autostart_box.grid(column=0, row=row, columnspan=2, sticky="w", pady=(0, 12))
+            row += 1
 
         button_frame = ttk.Frame(frame)
         button_frame.grid(column=0, row=row, columnspan=2, sticky="e")
@@ -419,6 +446,77 @@ class AgentWindow:
         else:
             ttk.Button(button_frame, text="Speichern", command=self._save).grid(column=0, row=0, padx=4)
             ttk.Button(button_frame, text="Abbrechen", command=self.root.destroy).grid(column=1, row=0)
+
+    def _build_reader_row(self, frame, row: int, current_value: str) -> None:
+        """Auswahlfeld für den Kartenleser: angeschlossene Geräte stehen oben und sind
+        vorausgewählt, alles andere lässt sich weiterhin von Hand eintragen (das Feld ist
+        bewusst frei beschreibbar, nfcpy kennt mehr Geräte als die Erkennungsliste)."""
+        from tkinter import ttk
+
+        container = ttk.Frame(frame)
+        container.grid(column=1, row=row, pady=4, padx=(8, 0), sticky="w")
+
+        self._reader_options = reader_detect.reader_options(current_value)
+        combo = ttk.Combobox(container, width=44, values=[o.label for o in self._reader_options])
+        combo.grid(column=0, row=0)
+        combo.bind("<<ComboboxSelected>>", self._on_reader_selected)
+        self.entries["reader"] = combo
+        self._reader_combo = combo
+
+        ttk.Button(container, text="Suchen", width=8, command=self._rescan_readers).grid(
+            column=1, row=0, padx=(6, 0)
+        )
+        # Darunter der Wert, der tatsächlich in der agent.ini landet -- so ist bei einem
+        # erkannten Gerät sofort sichtbar, was eingetragen wird, und wer den Wert von
+        # Hand tippt, sieht sofort, dass er übernommen wird.
+        self._reader_value_label = ttk.Label(container, text="", foreground="#666666")
+        self._reader_value_label.grid(column=0, row=1, columnspan=2, sticky="w", pady=(2, 0))
+        combo.bind("<KeyRelease>", lambda _event: self._update_reader_value_label())
+        self._select_reader(current_value or self._vorauswahl())
+
+    def _vorauswahl(self) -> str:
+        """Ohne bereits konfigurierten Wert: den ersten tatsächlich angeschlossenen Leser
+        nehmen, sonst nfcpys Auto-Erkennung."""
+        for option in self._reader_options:
+            if option.detected:
+                return option.value
+        return reader_detect.AUTO_VALUE
+
+    def _select_reader(self, value: str) -> None:
+        self._reader_combo.set(reader_detect.label_for_value(self._reader_options, value))
+        self._update_reader_value_label()
+
+    def _current_reader_value(self) -> str:
+        return reader_detect.value_for_label(self._reader_options, self._reader_combo.get())
+
+    def _update_reader_value_label(self) -> None:
+        wert = self._current_reader_value()
+        self._reader_value_label.config(text=f"Eintrag in der agent.ini: {wert}" if wert else "")
+
+    def _on_reader_selected(self, _event=None) -> None:
+        # "Benutzerdefiniert …" ist kein Wert, sondern die Einladung, selbst zu tippen.
+        if self._reader_combo.get() == reader_detect.CUSTOM_LABEL:
+            self._reader_combo.set("")
+            self._reader_combo.focus_set()
+        self._update_reader_value_label()
+
+    def _rescan_readers(self) -> None:
+        """Geräteliste neu einlesen (z.B. nachdem der Leser eingesteckt wurde)."""
+        aktuell = self._current_reader_value()
+        self._reader_options = reader_detect.reader_options(aktuell)
+        self._reader_combo["values"] = [o.label for o in self._reader_options]
+        self._select_reader(aktuell or self._vorauswahl())
+
+    def _toggle_autostart(self) -> None:
+        from tkinter import messagebox
+
+        gewuenscht = bool(self._autostart_var.get())
+        try:
+            autostart.set_enabled(gewuenscht)
+        except autostart.AutostartError as exc:
+            LOG.warning("Autostart konnte nicht umgestellt werden: %s", exc)
+            self._autostart_var.set(not gewuenscht)  # Häkchen zurücksetzen
+            messagebox.showerror(APP_NAME, str(exc))
 
     def _refresh_status(self) -> None:
         """Holt den Status im GUI-Thread ab (siehe _STATUS_POLL_MS)."""
@@ -437,6 +535,7 @@ class AgentWindow:
         from tkinter import messagebox
 
         values = {key: entry.get().strip() for key, entry in self.entries.items()}
+        values["reader"] = self._current_reader_value()
         missing = [label for key, label, _ in _FIELDS if key != "api_key" and not values[key]]
         if missing:
             messagebox.showerror(APP_NAME, f"Bitte ausfüllen: {', '.join(missing)}")

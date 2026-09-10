@@ -24,6 +24,9 @@ agent_id = kiosk1
 ; das Einstellungen-Fenster von sich aus).
 api_key = BITTE-AUS-DEM-ADMIN-BEREICH-EINTRAGEN
 
+; Wer die GUI-Variante nutzt, muss diesen Wert nicht von Hand setzen: das
+; Einstellungen-Fenster erkennt angeschlossene Leser und trägt sie hier ein.
+;
 ; Referenzhardware: NFC-Kartenleser USB ACR122U-A9 (RFID). Vendor:Product 072f:2200
 ; (ACS ACR122U) -- fest angeben statt nur "usb", damit der Agent nicht versehentlich ein
 ; anderes USB-Gerät anspricht. Der Wert ist auf beiden Plattformen identisch; die
