@@ -37,8 +37,9 @@ Server (VM, intern)                      Kiosk-PC (Eingang RZ)
 
 - **Backend**: FastAPI + SQLAlchemy + SQLite (eine Datei), Jinja2/htmx-artige
   Server-Templates für Kiosk und Admin-Bereich. Läuft in einem einzigen Container.
-- **Reader-Agent**: eigenständiges Python-Skript, läuft direkt auf dem
-  Windows-Kiosk-PC (nicht im Container — Zugriff auf lokale USB-Hardware nötig).
+- **Reader-Agent**: eigenständiges Python-Skript, läuft direkt auf dem Kiosk-PC
+  (Windows oder Linux; nicht im Container — Zugriff auf lokale USB-Hardware nötig),
+  wahlweise als Dienst oder als kleine Anwendung mit Symbol im Infobereich/Systray.
 - **Append-only-Log**: `checklog` erlaubt auf DB-Ebene nur `INSERT`; `UPDATE`/`DELETE`
   sind per SQLite-Trigger blockiert (Ausnahme: der Retention-Wartungsjob, siehe unten).
 
@@ -162,8 +163,9 @@ findet die Podman-Quadlet-Variante unter
 
 - Für jeden Technikraum bzw. Kiosk-PC im Admin-Bereich unter **"Agenten"** einen
   Reader-Agenten anlegen (der API-Key wird dabei einmalig angezeigt) — siehe
-  `agent/README.md` für die Einrichtung auf dem Windows-Kiosk-PC mit dem Kartenleser
-  und `deploy/KIOSK.md` für den Browser im Kiosk-Modus.
+  `agent/README.md` für die Einrichtung auf dem Kiosk-PC mit dem Kartenleser (Windows:
+  Abschnitt 1-6, Linux: Abschnitt 9) und `deploy/KIOSK.md` für den Browser im
+  Kiosk-Modus.
 - Titel im Kiosk-Header anpassen: Umgebungsvariable `RZ_SITE_TITLE` (siehe
   ["Eigene Konfiguration"](#eigene-konfiguration-umgebungsvariablen)).
 - Läuft alles wie gewünscht, lohnt sich ein Blick in
@@ -260,6 +262,11 @@ app/            FastAPI-Anwendung (läuft im Container)
   static/       CSS + minimales eigenes JS (kein CDN, siehe unten)
   cli.py        python -m app.cli {create-admin, create-agent, purge}
 agent/          Reader-Agent für den Kiosk-PC (separates Programm, siehe agent/README.md)
+  reader_agent.py   Kernlogik (Reader-Loop, Heartbeat, Offline-Puffer)
+  tray_app.py       GUI-Hülle: Systray-Symbol bzw. Fenster + Einstellungen
+  agent_paths.py    plattformabhängige Pfade (Windows/Linux)
+  build_exe.ps1 / build_linux.sh   Bau der jeweiligen Programmdatei (PyInstaller)
+  linux/            udev-Regel, systemd-Unit, Autostart-Eintrag, install.sh
 tests/          pytest-Suite
 deploy/         Podman-Quadlet-Unit, Retention-Timer, nginx-Beispiel, Kiosk-Anleitung
 docs/           PRTG-Sensor-Konfiguration
@@ -547,11 +554,18 @@ Cronjob auf dem Host anlegen und **außerhalb** des Containers/Hosts aufbewahren
 Die eigentliche Datei liegt innerhalb des Volumes; ihren Pfad auf dem Host findet man
 mit `podman volume inspect rz_checkin_data`.
 
-### Kiosk-PC (Windows)
+### Kiosk-PC (Windows oder Linux)
 
 Siehe `deploy/KIOSK.md` (Browser im Kiosk-Modus, Absicherung) und `agent/README.md`
-(Reader-Agent für den ACR122U-A9, als Kommandozeilen-Dienst (nssm) oder als
-Systray-.exe für den normalen Autostart, inkl. air-gapped Build-Anleitung).
+(Reader-Agent für den ACR122U-A9, inkl. air-gapped Build-Anleitung). Der Agent läuft auf
+beiden Plattformen aus denselben Quellen:
+
+- **Windows**: als Kommandozeilen-Dienst (nssm) oder als `RZ-CheckIn-Agent.exe` mit
+  Symbol im Infobereich für den normalen Autostart (`agent/README.md` Abschnitt 1-6).
+- **Linux**: als `rz-checkin-agent` mit Systray-Symbol bzw. kleinem Fenster im
+  Autostart des Kiosk-Benutzers oder als systemd-Dienst ohne Oberfläche; die Einrichtung
+  (udev-Regel, Kernel-Modul-Blacklist, Autostart) erledigt `agent/linux/install.sh`
+  (`agent/README.md` Abschnitt 9).
 
 ### Monitoring (PRTG)
 

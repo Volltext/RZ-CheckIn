@@ -13,3 +13,9 @@ dist/
 agent/agent.ini
 agent/agent_spool.jsonl
 agent/reader_agent.log
+# Bau-Artefakte der Agent-Programmdatei (PyInstaller, siehe agent/build_exe.ps1 bzw.
+# agent/build_linux.sh) und die vorbereitete Offline-Wheelhouse.
+agent/build/
+agent/build-venv/
+agent/*.spec
+agent/wheelhouse/

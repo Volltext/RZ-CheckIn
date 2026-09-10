@@ -1,9 +1,19 @@
-# Zusätzliche Abhängigkeiten NUR für die Systray-/GUI-Variante (agent/tray_app.py) bzw.
-# den .exe-Build daraus (siehe agent/build_exe.ps1). Der reine Kommandozeilen-Agent
-# (reader_agent.py) braucht davon nichts -- siehe agent/requirements.txt.
+# Zusätzliche Abhängigkeiten NUR für die GUI-Variante (agent/tray_app.py) bzw. die daraus
+# gebaute Programmdatei (agent/build_exe.ps1 für Windows, agent/build_linux.sh für Linux).
+# Der reine Kommandozeilen-Agent (reader_agent.py) braucht davon nichts -- siehe
+# agent/requirements.txt.
 #
-# tkinter (Einstellungen-Fenster) ist Teil der Standard-Windows-Python-Installation und
-# taucht hier bewusst nicht auf.
+# tkinter (Einstellungen-Fenster) taucht hier bewusst nicht auf: es ist kein PyPI-Paket.
+# Unter Windows gehört es zur Standard-Python-Installation, unter Linux liefert es das
+# Distributionspaket python3-tk (Debian/Ubuntu) bzw. python3-tkinter (RHEL/Fedora).
 pystray>=0.19
 pillow>=10.0
 pyinstaller>=6.0
+# Backend für das Systray-Symbol unter Linux. pystray kann drei Wege nutzen:
+# AppIndicator und GTK laufen über PyGObject (ein Systempaket, das sich nicht sinnvoll in
+# eine einzelne Programmdatei bündeln lässt), python-xlib dagegen ist reines Python und
+# landet direkt mit in der gebauten Datei -- damit funktioniert das Symbol auf allen
+# Desktops mit klassischem X11-Tray (KDE, XFCE, MATE, Cinnamon).
+# Auf GNOME/Wayland gibt es ohne AppIndicator-Erweiterung überhaupt keinen Tray; dort
+# schaltet die App automatisch auf ihr Fenster um (siehe tray_app.choose_ui_mode).
+python-xlib>=0.33; sys_platform == "linux"

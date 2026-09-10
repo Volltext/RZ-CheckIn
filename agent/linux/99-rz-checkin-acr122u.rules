@@ -1,0 +1,28 @@
+# udev-Regeln für den Kartenleser des RZ-CheckIn Reader-Agenten.
+#
+# Ohne diese Regeln gehört das USB-Gerät root und nfcpy meldet beim Öffnen
+# "Permission denied" bzw. der Agent bleibt in der Reconnect-Schleife hängen.
+#
+# Installation (macht auch linux/install.sh):
+#   sudo cp 99-rz-checkin-acr122u.rules /etc/udev/rules.d/
+#   sudo udevadm control --reload-rules && sudo udevadm trigger
+#
+# TAG+="uaccess" gibt dem gerade an der grafischen Oberfläche angemeldeten Benutzer
+# Zugriff (systemd-logind) -- das ist der Kiosk-Fall mit Systray/Fenster.
+# GROUP/MODE decken zusätzlich den Fall ab, dass der Agent als Dienst unter einem eigenen
+# Benutzerkonto ohne Desktop-Sitzung läuft; dieses Konto muss dann in der Gruppe
+# "plugdev" sein (siehe install.sh --service).
+
+# NFC-Kartenleser USB ACR122U-A9 (ACS ACR122U) -- die Referenzhardware.
+SUBSYSTEM=="usb", ATTR{idVendor}=="072f", ATTR{idProduct}=="2200", TAG+="uaccess", GROUP="plugdev", MODE="0660"
+
+# Weitere von nfcpy unterstützte USB-Leser, die im Projekt vorkommen können:
+# SCM Microsystems SCL3711
+SUBSYSTEM=="usb", ATTR{idVendor}=="04e6", ATTR{idProduct}=="5591", TAG+="uaccess", GROUP="plugdev", MODE="0660"
+# Sony RC-S380
+SUBSYSTEM=="usb", ATTR{idVendor}=="054c", ATTR{idProduct}=="06c1", TAG+="uaccess", GROUP="plugdev", MODE="0660"
+SUBSYSTEM=="usb", ATTR{idVendor}=="054c", ATTR{idProduct}=="06c3", TAG+="uaccess", GROUP="plugdev", MODE="0660"
+
+# PN532-Boards hängen als USB-Seriell-Wandler am System (reader = tty:USB0:pn532) und
+# brauchen keine eigene Regel -- der Benutzer muss dafür lediglich in der Gruppe
+# "dialout" sein: sudo usermod -aG dialout <benutzer>
