@@ -1,6 +1,7 @@
-# Baut bei jedem GitHub-Release (bzw. Tag "v*") das Container-Image fertig,
-# veröffentlicht es in der GitHub Container Registry (ghcr.io) und hängt es zusätzlich
-# als Datei (.tar.gz, für Server ohne Internet) an das Release an.
+# Baut bei jedem Tag "v*" alles fertig:
+#  - Container-Image -> ghcr.io (plus als .tar.gz am Release, für Server ohne Internet)
+#  - Windows-Agent   -> RZ-CheckIn-Agent.exe am Release
+#  - Linux-Agent     -> rz-checkin-agent-linux-amd64.tar.gz am Release (Binary + install.sh)
 name: Release
 
 on:
@@ -62,7 +63,60 @@ jobs:
 
       - run: gzip -9 rz-checkin-amd64.tar
 
+      - uses: actions/upload-artifact@v4
+        with:
+          name: image-tar
+          path: rz-checkin-amd64.tar.gz
+
+  agent-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Agent bauen
+        shell: pwsh
+        run: agent/build_exe.ps1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: agent-windows
+          path: agent/dist/RZ-CheckIn-Agent.exe
+
+  agent-linux:
+    # Bewusst die älteste verfügbare Ubuntu-Version: PyInstaller bündelt glibc nicht,
+    # eine hier gebaute Datei läuft daher auch auf neueren Distributionen.
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: sudo apt-get update && sudo apt-get install -y python3-tk libusb-1.0-0
+      - name: Agent bauen
+        run: agent/build_linux.sh
+      - name: Paket schnüren (Binary + Installationsskript)
+        run: |
+          d=rz-checkin-agent-linux
+          mkdir -p $d/dist
+          cp agent/dist/rz-checkin-agent $d/dist/
+          cp -r agent/linux $d/linux
+          cp agent/agent.ini.example agent/README.md $d/
+          tar czf rz-checkin-agent-linux-amd64.tar.gz $d
+      - uses: actions/upload-artifact@v4
+        with:
+          name: agent-linux
+          path: rz-checkin-agent-linux-amd64.tar.gz
+
+  release:
+    needs: [image, agent-windows, agent-linux]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
       - uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
-          files: rz-checkin-amd64.tar.gz
+          files: artifacts/*
