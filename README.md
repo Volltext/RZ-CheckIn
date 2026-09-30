@@ -475,9 +475,7 @@ Die wichtigsten Variablen für den Einstieg:
 ### Updates einspielen
 
 ```bash
-cd RZ-CheckIn
-git pull
-podman build -t rz-checkin:latest -f Containerfile .
+podman pull ghcr.io/volltext/rz-checkin:latest
 podman stop rz-checkin
 podman rm rz-checkin
 podman run -d --name rz-checkin \
