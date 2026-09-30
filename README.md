@@ -67,17 +67,28 @@ Andere Distribution? Fedora/RHEL/Rocky: `sudo dnf install -y podman git`; Arch:
 
 Kurzer Test, ob es geklappt hat: `podman --version` sollte eine Versionsnummer ausgeben.
 
-### Schritt 2: Projekt holen und das Container-Image bauen
+### Schritt 2: Fertiges Container-Image herunterladen
+
+Das Image wird bei jedem [Release](https://github.com/Volltext/RZ-CheckIn/releases)
+automatisch gebaut — ihr müsst nichts selbst bauen:
+
+```bash
+podman pull ghcr.io/volltext/rz-checkin:latest
+```
+
+(Für eine feste Version statt `latest` z. B. `ghcr.io/volltext/rz-checkin:0.1.0`.)
+Verfügbar für `amd64` und `arm64` (z. B. Raspberry Pi).
+
+<details>
+<summary>Trotzdem selbst bauen (z. B. für eigene Änderungen)</summary>
 
 ```bash
 git clone https://github.com/Volltext/RZ-CheckIn.git
 cd RZ-CheckIn
-podman build -t rz-checkin:latest -f Containerfile .
+podman build -t ghcr.io/volltext/rz-checkin:latest -f Containerfile .
 ```
 
-Der letzte Befehl dauert beim ersten Mal ein bis zwei Minuten (lädt einmalig eine
-Python-Basis herunter, danach nur noch Sekunden bei erneuten Builds). Am Ende sollte
-`podman images` eine Zeile mit `localhost/rz-checkin` bzw. `rz-checkin` zeigen.
+</details>
 
 > **Server ganz ohne Internetzugang?** Dann braucht ihr diesen Schritt auf dem
 > Zielserver nicht — Image auf einem anderen Rechner bauen und übertragen, siehe
@@ -91,7 +102,7 @@ podman run -d --name rz-checkin \
   -p 8000:8000 \
   -v rz_checkin_data:/data \
   --restart on-failure \
-  rz-checkin:latest
+  ghcr.io/volltext/rz-checkin:latest
 ```
 
 Kurz erklärt, was diese eine Zeile bewirkt:
@@ -103,7 +114,7 @@ Kurz erklärt, was diese eine Zeile bewirkt:
 | `-p 8000:8000` | macht ihn unter Port 8000 des Servers von außen erreichbar |
 | `-v rz_checkin_data:/data` | legt Datenbank + Zugangsdaten dauerhaft in einem benannten Volume ab — überlebt Neustarts und Updates |
 | `--restart on-failure` | startet den Container automatisch neu, falls er abstürzt |
-| `rz-checkin:latest` | das eben gebaute (oder geladene) Image |
+| `ghcr.io/volltext/rz-checkin:latest` | das eben heruntergeladene (oder geladene) Image |
 
 Prüfen, ob er läuft: `podman ps` sollte `rz-checkin` mit Status `Up ...` auflisten.
 
@@ -446,7 +457,7 @@ podman run -d --name rz-checkin \
   -v rz_checkin_data:/data \
   --env-file /etc/rz-checkin/rz-checkin.env \
   --restart on-failure \
-  rz-checkin:latest
+  ghcr.io/volltext/rz-checkin:latest
 ```
 
 Die wichtigsten Variablen für den Einstieg:
@@ -464,16 +475,14 @@ Die wichtigsten Variablen für den Einstieg:
 ### Updates einspielen
 
 ```bash
-cd RZ-CheckIn
-git pull
-podman build -t rz-checkin:latest -f Containerfile .
+podman pull ghcr.io/volltext/rz-checkin:latest
 podman stop rz-checkin
 podman rm rz-checkin
 podman run -d --name rz-checkin \
   -p 8000:8000 \
   -v rz_checkin_data:/data \
   --restart on-failure \
-  rz-checkin:latest
+  ghcr.io/volltext/rz-checkin:latest
 ```
 
 `podman rm` entfernt nur den Container selbst, nicht das Volume `rz_checkin_data` —
@@ -510,11 +519,13 @@ Optionaler Reverse-Proxy mit eigenem TLS-Zertifikat: `deploy/nginx-rz-checkin.co
 ### Deployment ohne Internetzugang auf dem Server (air-gapped)
 
 Steht der Server komplett ohne Internetzugang im internen Netz, entfällt Schritt 2 des
-Schnellstarts (`git clone` + `podman build` brauchen Internetzugang). Stattdessen das
-Image auf einer Maschine **mit** Internetzugang bauen und als Datei übertragen:
+Schnellstarts. Stattdessen die Datei `rz-checkin-amd64.tar.gz` aus den
+[Releases](https://github.com/Volltext/RZ-CheckIn/releases) auf einer Maschine **mit**
+Internetzugang herunterladen (oder selbst bauen, s. u.) und als Datei übertragen. Danach
+heißt das Image lokal `rz-checkin:latest` (statt `ghcr.io/volltext/rz-checkin:latest`):
 
 ```bash
-# Auf der Build-Maschine (mit Internetzugang):
+# Alternativ selbst bauen und speichern (Build-Maschine mit Internetzugang):
 git clone https://github.com/Volltext/RZ-CheckIn.git
 cd RZ-CheckIn
 podman build -t rz-checkin:latest -f Containerfile .
@@ -522,11 +533,11 @@ podman save rz-checkin:latest -o rz-checkin-image.tar.gz --format docker-archive
 # oder mit Docker gebaut: docker save rz-checkin:latest | gzip > rz-checkin-image.tar.gz
 ```
 
-Die Datei `rz-checkin-image.tar.gz` per USB-Stick oder internem Fileshare auf den
+Die Datei per USB-Stick oder internem Fileshare auf den
 Zielserver übertragen, dort laden und wie im Schnellstart ab Schritt 3 weitermachen:
 
 ```bash
-podman load -i rz-checkin-image.tar.gz
+podman load -i rz-checkin-amd64.tar.gz
 podman run -d --name rz-checkin \
   -p 8000:8000 \
   -v rz_checkin_data:/data \

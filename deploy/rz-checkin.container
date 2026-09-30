@@ -13,7 +13,7 @@ After=network-online.target
 Wants=network-online.target
 
 [Container]
-Image=localhost/rz-checkin:latest
+Image=ghcr.io/volltext/rz-checkin:latest
 ContainerName=rz-checkin
 # Baut das Image lokal aus dem Containerfile im Projektwurzelverzeichnis, falls es noch
 # nicht existiert. Alternativ: Image über eine interne Registry beziehen und diese Zeile
