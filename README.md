@@ -95,6 +95,11 @@ podman build -t ghcr.io/volltext/rz-checkin:latest -f Containerfile .
 > ["Deployment ohne Internetzugang auf dem Server"](#deployment-ohne-internetzugang-auf-dem-server-air-gapped)
 > weiter unten. Alles ab Schritt 3 hier funktioniert danach identisch.
 
+> **Reader-Agent für die Kiosk-PCs:** Windows-`RZ-CheckIn-Agent.exe` und Linux-Paket
+> `rz-checkin-agent-linux-amd64.tar.gz` (Binary + `install.sh`) hängen ebenfalls fertig
+> gebaut am jeweiligen [Release](https://github.com/Volltext/RZ-CheckIn/releases) —
+> Einrichtung siehe `agent/README.md`.
+
 ### Schritt 3: Container starten
 
 ```bash
