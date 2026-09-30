@@ -14,6 +14,8 @@ permissions:
 
 env:
   IMAGE: ghcr.io/${{ github.repository_owner }}/rz-checkin
+  # Die automatisch hochgeladenen "*.dockerbuild"-Build-Summaries brauchen wir nicht.
+  DOCKER_BUILD_SUMMARY: "false"
 
 jobs:
   image:
@@ -112,9 +114,11 @@ jobs:
     needs: [image, agent-windows, agent-linux]
     runs-on: ubuntu-latest
     steps:
+      # Nur unsere eigenen Artefakte laden (nicht pauschal alle).
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
+          pattern: "{image-tar,agent-windows,agent-linux}"
           merge-multiple: true
       - uses: softprops/action-gh-release@v2
         with:
