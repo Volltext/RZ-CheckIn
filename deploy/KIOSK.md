@@ -24,6 +24,12 @@ Absicherung des PCs.
   Admin-Bereich unter „Agenten“). Der Kiosk merkt sich den Raum, und die Externer-Besucher-
   Maske checkt automatisch in diesen Raum ein, ohne Raumauswahl. Da der Start-URL-Parameter
   bei jedem Start gesetzt wird, funktioniert das auch mit `--incognito`.
+- **Automatisch ohne URL-Parameter:** Der Server merkt sich bei jedem Scan/Heartbeat die IP
+  des Agent-PCs. Öffnet ein Browser mit genau dieser IP die Besucher-Maske, wird der Raum
+  des Agenten übernommen (Browser und Agent laufen auf demselben PC). Wechselt die
+  DHCP-Adresse, wird sie beim nächsten Agent-Kontakt nachgezogen. Hinter nginx muss
+  `X-Forwarded-For` gesetzt sein (siehe `deploy/nginx-rz-checkin.conf`), sonst sieht der
+  Server nur die Proxy-IP. `?raum=` (Cookie) hat Vorrang.
 - Kein `--app=` verwenden, damit die normale Kiosk-Navigation (Tastatur/Touch) innerhalb
   der Seite funktioniert; `--kiosk` blendet Adressleiste, Tabs und Fenstersteuerung aus.
 

@@ -29,6 +29,7 @@ from app.services.attendance import (
     checkout_person,
     presence_by_room,
 )
+from app.services.agents import agent_for_ip, client_ip
 from app.services.feedback import latest_event
 from app.services.settings import get_besucher_suche_aktiv
 from app.templating import templates
@@ -168,6 +169,11 @@ def _besucher_kontext(request: Request, db: Session, raum: str, **extra) -> dict
     # Fest zugeordneter Kiosk (Cookie, siehe kiosk_home): Raum automatisch übernehmen,
     # keine Auswahl und kein "Anderer Raum"-Button.
     kiosk_raum = _resolve_raum(db, request.cookies.get(KIOSK_RAUM_COOKIE, ""))
+    if kiosk_raum is None:
+        # Ohne Cookie: Raum über die zuletzt vom Agent gemeldete IP dieses PCs ermitteln
+        # (Agent und Browser laufen auf demselben Kiosk-PC, siehe Agent.letzte_ip).
+        agent_per_ip = agent_for_ip(db, client_ip(request))
+        kiosk_raum = agent_per_ip.agent_id if agent_per_ip else None
     raum_fest = kiosk_raum is not None
     if gewaehlt is None and kiosk_raum:
         gewaehlt = db.get(Agent, kiosk_raum)

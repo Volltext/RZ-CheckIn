@@ -18,6 +18,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models import Agent
@@ -33,3 +34,38 @@ def delete_agent(db: Session, agent_id: str) -> None:
         return
     agent.geloescht_am = _now()
     db.commit()
+
+
+def client_ip(request) -> str | None:  # noqa: ANN001
+    """IP des Clients. Hinter einem Reverse-Proxy (deploy/nginx-rz-checkin.conf, hängt
+    die gesehene Client-IP per `$proxy_add_x_forwarded_for` ANS ENDE von X-Forwarded-For
+    an) ist der letzte Eintrag die vom Proxy selbst beobachtete -- frühere Einträge kann
+    der Client fälschen. Ohne Proxy gilt die TCP-Peer-Adresse."""
+    xff = request.headers.get("x-forwarded-for", "")
+    if xff.strip():
+        return xff.split(",")[-1].strip() or None
+    return request.client.host if request.client else None
+
+
+def remember_agent_ip(db, agent, request) -> None:  # noqa: ANN001
+    """Merkt sich die aktuelle IP des Agent-PCs (Scan/Heartbeat) für die automatische
+    Raumzuordnung des Kiosk-Browsers; ändert sich die DHCP-Adresse, wird sie beim
+    nächsten Kontakt automatisch nachgezogen."""
+    ip = client_ip(request)
+    if not ip:
+        return
+    agent.letzte_ip = ip
+    agent.ip_gesehen_am = datetime.now(timezone.utc)
+    db.commit()
+
+
+def agent_for_ip(db, ip: str | None):  # noqa: ANN001
+    """Aktiver Agent, der zuletzt von dieser IP gesehen wurde (neuester gewinnt, falls
+    eine DHCP-Adresse inzwischen an ein anderes Gerät ging)."""
+    if not ip:
+        return None
+    return db.scalars(
+        select(Agent)
+        .where(Agent.letzte_ip == ip, Agent.geloescht_am.is_(None))
+        .order_by(Agent.ip_gesehen_am.desc())
+    ).first()
