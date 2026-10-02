@@ -63,3 +63,32 @@ def test_deleted_agent_not_offered_as_room_choice_at_kiosk(client, db):
     # taucht nicht mehr auf.
     assert "In welchem Raum" not in response.text
     assert "Serverraum A" not in response.text
+
+
+def _scan(client, api_key, ip):
+    return client.post(
+        "/api/checkin/rfid",
+        json={"agent_id": "x", "uid": "AABBCCDD"},
+        headers={"X-Agent-Key": api_key, "X-Forwarded-For": ip},
+    )
+
+
+def test_besucher_maske_uebernimmt_raum_per_agent_ip(client, db):
+    _, key1 = make_agent(db, agent_id="kiosk1", bezeichnung="Serverraum A")
+    make_agent(db, agent_id="kiosk2", bezeichnung="Serverraum B")
+    # Ohne bekannte IP: Raumauswahl
+    assert "In welchem Raum?" in client.get("/kiosk/besucher", headers={"X-Forwarded-For": "10.0.0.5"}).text
+
+    _scan(client, key1, "10.0.0.5")
+    text = client.get("/kiosk/besucher", headers={"X-Forwarded-For": "10.0.0.5"}).text
+    assert "In welchem Raum?" not in text
+    assert 'name="raum" value="kiosk1"' in text
+
+
+def test_agent_ip_wird_bei_dhcp_wechsel_nachgezogen(client, db):
+    _, key1 = make_agent(db, agent_id="kiosk1", bezeichnung="Serverraum A")
+    make_agent(db, agent_id="kiosk2", bezeichnung="Serverraum B")
+    _scan(client, key1, "10.0.0.5")
+    _scan(client, key1, "10.0.0.9")
+    assert "In welchem Raum?" in client.get("/kiosk/besucher", headers={"X-Forwarded-For": "10.0.0.5"}).text
+    assert "In welchem Raum?" not in client.get("/kiosk/besucher", headers={"X-Forwarded-For": "10.0.0.9"}).text

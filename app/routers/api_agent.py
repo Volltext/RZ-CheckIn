@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy.orm import Session
 
 from app.db import get_db
@@ -17,6 +17,7 @@ from app.schemas import (
     RfidScanResponse,
 )
 from app.security import require_agent
+from app.services.agents import remember_agent_ip
 from app.services.attendance import record_rfid_scan
 from app.services.feedback import push_event
 
@@ -25,6 +26,7 @@ router = APIRouter(prefix="/api", tags=["agent"])
 
 @router.post("/checkin/rfid", response_model=RfidScanResponse)
 def checkin_rfid(
+    request: Request,
     payload: RfidScanRequest,
     db: Session = Depends(get_db),
     agent: Agent = Depends(require_agent),
@@ -33,6 +35,7 @@ def checkin_rfid(
     # Technikraum, siehe app/models.py::Agent), nicht über payload.agent_id -- der Header
     # ist bereits die vertrauenswürdige Quelle für die Agent-Identität (siehe
     # app/security.require_agent).
+    remember_agent_ip(db, agent, request)
     outcome = record_rfid_scan(db, uid=payload.uid, timestamp=payload.timestamp, raum=agent.agent_id)
     # Es gibt bewusst keinen Namen im Feedback-Event -- es gibt kein Mitarbeiter-Register,
     # jede Karten-UID togglet direkt (siehe app/services/attendance.py::record_rfid_scan).
@@ -45,6 +48,7 @@ def checkin_rfid(
 
 @router.post("/agent/heartbeat", response_model=HeartbeatResponse)
 def agent_heartbeat(
+    request: Request,
     payload: HeartbeatRequest,
     db: Session = Depends(get_db),
     agent: Agent = Depends(require_agent),
@@ -52,4 +56,5 @@ def agent_heartbeat(
     now = datetime.now(timezone.utc)
     agent.last_seen = now
     db.commit()
+    remember_agent_ip(db, agent, request)
     return HeartbeatResponse(agent_id=agent.agent_id, last_seen=now)

@@ -117,6 +117,11 @@ class Agent(Base):
     api_key_hash: Mapped[str] = mapped_column(String(200))
     erstellt_am: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
     last_seen: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Zuletzt gesehene IP des Kiosk-PCs, auf dem der Agent läuft (aus Scan/Heartbeat). Der
+    # Kiosk-Browser läuft auf demselben PC, damit lässt sich der Raum für die
+    # Besucher-Maske ohne feste URL ermitteln (siehe app/routers/kiosk.py::_besucher_kontext).
+    letzte_ip: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    ip_gesehen_am: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     geloescht_am: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 

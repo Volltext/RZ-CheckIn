@@ -105,3 +105,39 @@ def test_delete_visitor_while_present_is_blocked(db):
         delete_visitor(db, visitor.id)
 
     assert db.get(Visitor, visitor.id) is not None
+
+
+def test_anlegen_zeigt_hinweis_bei_doppeltem_profil(client, db):
+    make_visitor(db, vorname="Erika", nachname="Musterfrau", telefonnummer="555")
+    response = client.post(
+        "/kiosk/besucher/anlegen",
+        data={"vorname": "erika", "nachname": "MUSTERFRAU", "firma": "", "telefonnummer": ""},
+    )
+    assert response.status_code == 200
+    assert "Dieses Profil gibt es schon" in response.text
+    assert len(db.scalars(select(Visitor)).all()) == 1
+
+
+def test_anlegen_erkennt_gleiche_telefonnummer(client, db):
+    make_visitor(db, vorname="Erika", nachname="Musterfrau", telefonnummer="555")
+    response = client.post(
+        "/kiosk/besucher/anlegen",
+        data={"vorname": "Max", "nachname": "Anders", "firma": "", "telefonnummer": "555"},
+    )
+    assert "Dieses Profil gibt es schon" in response.text
+
+
+def test_anlegen_trotzdem_legt_neues_profil_an(client, db):
+    make_visitor(db, vorname="Erika", nachname="Musterfrau", telefonnummer="555")
+    response = client.post(
+        "/kiosk/besucher/anlegen",
+        data={"vorname": "Erika", "nachname": "Musterfrau", "firma": "", "telefonnummer": "", "trotzdem": "1"},
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    assert len(db.scalars(select(Visitor)).all()) == 2
+
+
+def test_besucher_maske_hat_inaktivitaets_rueckkehr(client, db):
+    response = client.get("/kiosk/besucher")
+    assert 'data-idle-redirect="/"' in response.text

@@ -347,6 +347,29 @@ body:not(.kiosk) tbody tr:hover { background: rgba(37, 99, 235, 0.05); }
 .raum-karte-icon svg { width: 1.6rem; height: 1.6rem; }
 .raum-karte-name { font-size: 1.2rem; font-weight: 600; text-align: center; }
 
+/* Externer-Besucher-Maske: passt sich immer exakt der Bildschirmhöhe an, ohne zu
+   scrollen (die Kiosk-PCs haben unterschiedliche Auflösungen). Abstände und Feldhöhen
+   skalieren mit der Viewport-Höhe (vh); nur die Trefferliste scrollt bei Bedarf intern. */
+body.kiosk-fit { height: 100vh; height: 100dvh; min-height: 0; overflow: hidden; }
+body.kiosk-fit header.kiosk-header { padding: clamp(0.5rem, 2vh, 1.5rem) 2rem 0.25rem; }
+body.kiosk-fit main {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding-top: clamp(0.25rem, 1vh, 1rem);
+  padding-bottom: clamp(0.5rem, 2vh, 2rem);
+}
+body.kiosk-fit .kiosk-besucher { flex: 1; min-height: 0; display: flex; flex-direction: column; width: 100%; }
+body.kiosk-fit .duplikat-hinweis { margin-bottom: 0.75rem; }
+.duplikat-hinweis h2 { color: var(--farbe-warnung); }
+
+.raum-aktuell { margin-bottom: clamp(0.4rem, 1.5vh, 1.5rem); }
+body.kiosk-fit .formular-kopf { padding: 0.25rem 0; margin-bottom: clamp(0.1rem, 0.5vh, 0.5rem); }
+body.kiosk-fit form.formular { gap: clamp(0.3rem, 1.2vh, 0.7rem); }
+body.kiosk-fit form.formular input { padding: clamp(0.4rem, 1.6vh, 0.8rem) 0.9rem; }
+body.kiosk-fit .suche-ergebnisse { min-height: 0; max-height: 25vh; overflow-y: auto; }
+body.kiosk-fit .raum-karte { padding: clamp(1rem, 5vh, 2.75rem) 1.5rem; }
+
 .raum-aktuell {
   display: flex;
   align-items: center;

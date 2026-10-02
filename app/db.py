@@ -129,6 +129,11 @@ def _add_missing_columns(cursor) -> None:
         # app/models.py::Agent).
         cursor.execute("ALTER TABLE agents ADD COLUMN geloescht_am TEXT")
 
+    if _table_exists(cursor, "agents") and "letzte_ip" not in _legacy_columns(cursor, "agents"):
+        # Zuletzt gesehene Kiosk-IP für die automatische Raumzuordnung (siehe Agent.letzte_ip).
+        cursor.execute("ALTER TABLE agents ADD COLUMN letzte_ip TEXT")
+        cursor.execute("ALTER TABLE agents ADD COLUMN ip_gesehen_am TEXT")
+
 
 def _migrate_renamed_tables(cursor, renamed: set[str]) -> None:
     if "checklog" in renamed:
