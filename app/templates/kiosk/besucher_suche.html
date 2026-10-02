@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block body_class %}kiosk{% endblock %}
+{% block body_class %}kiosk kiosk-fit{% endblock %}
 {% block body %}
 <header class="kiosk-header">
   <h1>Externer Besucher — Einchecken</h1>
@@ -40,11 +40,11 @@
     placeholder="z. B. Mustermann"
     data-search-url="/kiosk/besucher/suche-partial?raum={{ raum }}"
     data-swap-target="#suche-ergebnisse"
-    style="width:100%; padding:0.8rem; font-size:1.1rem; margin:0.5rem 0 1.5rem;"
+    style="width:100%; padding:min(0.8rem, 1.2vh); font-size:1.1rem; margin:0.5rem 0 min(1.5rem, 1.5vh);"
   >
-  <div id="suche-ergebnisse"></div>
+  <div id="suche-ergebnisse" class="suche-ergebnisse"></div>
 
-  <hr style="margin:2rem 0; border-color:#334155;">
+  <hr style="margin:min(2rem, 1.5vh) 0; border-color:#334155;">
   {% endif %}
 
   {# Der Anlegen-Button sitzt bewusst oben (sticky) statt unter den Feldern: an einem

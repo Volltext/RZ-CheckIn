@@ -35,6 +35,8 @@ from app.templating import templates
 
 router = APIRouter(tags=["kiosk"])
 
+KIOSK_RAUM_COOKIE = "kiosk_raum"
+
 
 def _resolve_raum(db: Session, raum: str) -> str | None:
     """Validiert eine vom Kiosk übermittelte Raum-Angabe gegen die vorhandenen, aktiven
@@ -79,10 +81,19 @@ def _room_context(db: Session) -> dict:
 
 
 @router.get("/", response_class=HTMLResponse)
-def kiosk_home(request: Request, db: Session = Depends(get_db)) -> HTMLResponse:
+def kiosk_home(request: Request, raum: str = "", db: Session = Depends(get_db)) -> HTMLResponse:
+    """Der Kiosk-Browser wird einmalig mit `?raum=<agent_id>` gestartet (siehe
+    deploy/KIOSK.md); die Raum-Zuordnung dieses Kiosks landet dann in einem langlebigen
+    Cookie, damit die Besucher-Maske den passenden Raum automatisch übernimmt."""
     context = _room_context(db)
     context["event"] = latest_event()
-    return templates.TemplateResponse(request, "kiosk/index.html", context)
+    response = templates.TemplateResponse(request, "kiosk/index.html", context)
+    fester_raum = _resolve_raum(db, raum)
+    if fester_raum:
+        response.set_cookie(
+            KIOSK_RAUM_COOKIE, fester_raum, max_age=60 * 60 * 24 * 365 * 10, httponly=True, samesite="lax"
+        )
+    return response
 
 
 @router.post("/kiosk/auschecken/visitor/{person_id}")
@@ -136,6 +147,13 @@ def besucher_suche_seite(request: Request, raum: str = "", db: Session = Depends
     if gewaehlt is not None and gewaehlt.geloescht_am is not None:
         gewaehlt = None
 
+    # Fest zugeordneter Kiosk (Cookie, siehe kiosk_home): Raum automatisch übernehmen,
+    # keine Auswahl und kein "Anderer Raum"-Button.
+    kiosk_raum = _resolve_raum(db, request.cookies.get(KIOSK_RAUM_COOKIE, ""))
+    raum_fest = kiosk_raum is not None
+    if gewaehlt is None and kiosk_raum:
+        gewaehlt = db.get(Agent, kiosk_raum)
+
     if gewaehlt is None and len(agenten) > 1:
         return templates.TemplateResponse(
             request, "kiosk/besucher_suche.html", {"raum_wahl": True, "agenten": agenten}
@@ -151,7 +169,7 @@ def besucher_suche_seite(request: Request, raum: str = "", db: Session = Depends
             "raum_wahl": False,
             "raum": gewaehlt.agent_id if gewaehlt else "",
             "raum_bezeichnung": gewaehlt.bezeichnung if gewaehlt else None,
-            "mehrere_raeume": len(agenten) > 1,
+            "mehrere_raeume": len(agenten) > 1 and not raum_fest,
             "suche_aktiv": get_besucher_suche_aktiv(db),
         },
     )
