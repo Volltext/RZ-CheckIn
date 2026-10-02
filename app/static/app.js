@@ -30,7 +30,18 @@ function swapFragment(url, targetSelector) {
     .then((r) => r.text())
     .then((html) => {
       const el = document.querySelector(targetSelector);
-      if (el && !hatUngespeicherteEingabe(el)) el.innerHTML = html;
+      if (el && !hatUngespeicherteEingabe(el)) {
+        const geaendert = el.dataset.letztesHtml !== html;
+        el.dataset.letztesHtml = html;
+        el.innerHTML = html;
+        // Ändert sich dieses Fragment (z.B. neues Scan-Feedback), laden alle Fragmente
+        // mit data-refresh-on="<id>" sofort nach, statt auf ihren nächsten Poll zu warten.
+        if (geaendert) {
+          document.querySelectorAll('[data-refresh-on="' + el.id + '"]').forEach((abh) =>
+            swapFragment(abh.getAttribute("data-poll-url"), "#" + abh.id)
+          );
+        }
+      }
     })
     .catch(() => {
       /* Kiosk pollt weiter, ein einzelner fehlgeschlagener Request ist kein Problem */

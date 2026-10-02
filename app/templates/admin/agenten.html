@@ -22,13 +22,14 @@ am Kiosk auswählen) werden entsprechend zugeordnet.</p>
 
 <div class="karte">
   <table>
-    <thead><tr><th>Agent-ID</th><th>Bezeichnung</th><th>Zuletzt gesehen</th><th></th></tr></thead>
+    <thead><tr><th>Agent-ID</th><th>Bezeichnung</th><th>Zuletzt gesehen</th><th>Letzte IP</th><th></th></tr></thead>
     <tbody>
       {% for a in agenten %}
       <tr>
         <td>{{ a.agent_id }}</td>
         <td>{{ a.bezeichnung }}</td>
         <td>{{ a.last_seen.strftime("%d.%m.%Y %H:%M:%S") if a.last_seen else "noch nie" }}</td>
+        <td>{{ a.letzte_ip or "–" }}</td>
         <td>
           <form method="post" action="/admin/agenten/{{ a.agent_id }}/loeschen" class="formular-inline"
                 onsubmit="return confirm('Agent {{ a.agent_id }} entfernen? Der API-Key wird sofort ungültig. Bestehende Log-Einträge bleiben mit Raumnamen erhalten.');">
