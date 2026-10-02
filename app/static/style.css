@@ -360,7 +360,10 @@ body.kiosk-fit main {
   padding-bottom: clamp(0.5rem, 2vh, 2rem);
 }
 body.kiosk-fit .kiosk-besucher { flex: 1; min-height: 0; display: flex; flex-direction: column; width: 100%; }
-body.kiosk-fit .raum-aktuell { margin-bottom: clamp(0.4rem, 1.5vh, 1.5rem); }
+body.kiosk-fit .duplikat-hinweis { margin-bottom: 0.75rem; }
+.duplikat-hinweis h2 { color: var(--farbe-warnung); }
+
+.raum-aktuell { margin-bottom: clamp(0.4rem, 1.5vh, 1.5rem); }
 body.kiosk-fit .formular-kopf { padding: 0.25rem 0; margin-bottom: clamp(0.1rem, 0.5vh, 0.5rem); }
 body.kiosk-fit form.formular { gap: clamp(0.3rem, 1.2vh, 0.7rem); }
 body.kiosk-fit form.formular input { padding: clamp(0.4rem, 1.6vh, 0.8rem) 0.9rem; }

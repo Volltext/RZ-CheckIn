@@ -7,7 +7,7 @@
 </header>
 
 <main>
-<div class="kiosk-besucher {{ 'kiosk-besucher-wahl' if raum_wahl else '' }}">
+<div class="kiosk-besucher {{ 'kiosk-besucher-wahl' if raum_wahl else '' }}" data-idle-redirect="/" data-idle-seconds="60">
 {% if raum_wahl %}
   <h2>In welchem Raum?</h2>
   <div class="raum-wahl">
@@ -31,7 +31,25 @@
   </p>
   {% endif %}
 
-  {% if suche_aktiv %}
+  {% if duplikate %}
+  <div class="duplikat-hinweis">
+    <h2>Dieses Profil gibt es schon</h2>
+    <ul class="besucher-treffer">
+      {% for v in duplikate %}
+      <li>
+        <form method="post" action="/kiosk/besucher/einchecken" class="formular-inline">
+          <input type="hidden" name="visitor_id" value="{{ v.id }}">
+          <input type="hidden" name="raum" value="{{ raum }}">
+          <span>{{ v.vorname }} {{ v.nachname }}{% if v.firma %} — {{ v.firma }}{% endif %}{% if v.telefonnummer %} ({{ v.telefonnummer }}){% endif %}</span>
+          <button type="submit" class="button button-erfolg">Dieses einchecken</button>
+        </form>
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+
+  {% if suche_aktiv and not duplikate %}
   <label for="suche">Vorhandenes Profil suchen (Name oder Telefonnummer)</label>
   <input
     id="suche"
@@ -59,19 +77,20 @@
           <path d="M20 6 9 17l-5-5" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
       </span>
-      Anlegen &amp; einchecken
+      {% if duplikate %}Trotzdem neu anlegen{% else %}Anlegen &amp; einchecken{% endif %}
     </button>
   </div>
   <form id="besucher-anlegen-formular" class="formular" method="post" action="/kiosk/besucher/anlegen">
     <input type="hidden" name="raum" value="{{ raum }}">
+    {% if duplikate %}<input type="hidden" name="trotzdem" value="1">{% endif %}
     <label for="vorname">Vorname</label>
-    <input id="vorname" name="vorname" required>
+    <input id="vorname" name="vorname" required value="{{ eingabe.vorname if eingabe else '' }}">
     <label for="nachname">Nachname</label>
-    <input id="nachname" name="nachname" required>
+    <input id="nachname" name="nachname" required value="{{ eingabe.nachname if eingabe else '' }}">
     <label for="firma">Firma</label>
-    <input id="firma" name="firma">
+    <input id="firma" name="firma" value="{{ eingabe.firma if eingabe else '' }}">
     <label for="telefonnummer">Telefonnummer</label>
-    <input id="telefonnummer" name="telefonnummer">
+    <input id="telefonnummer" name="telefonnummer" value="{{ eingabe.telefonnummer if eingabe else '' }}">
   </form>
 {% endif %}
 </div>

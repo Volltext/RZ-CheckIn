@@ -83,7 +83,28 @@ function beep(frequenz) {
   }
 }
 
+function startIdleRedirect() {
+  // Inaktivitäts-Rückkehr: Besucher-Maske springt nach N Sekunden ohne Eingabe zurück
+  // zur Übersicht, damit keine eingetippten Daten (Datenschutz) stehen bleiben.
+  const el = document.querySelector("[data-idle-redirect]");
+  if (!el) return;
+  const ziel = el.getAttribute("data-idle-redirect");
+  const ms = parseInt(el.getAttribute("data-idle-seconds") || "60", 10) * 1000;
+  let timer = null;
+  const reset = () => {
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      window.location.href = ziel;
+    }, ms);
+  };
+  ["pointerdown", "keydown", "input", "touchstart", "scroll"].forEach((ev) =>
+    document.addEventListener(ev, reset, { passive: true })
+  );
+  reset();
+}
+
 document.addEventListener("DOMContentLoaded", () => {
+  startIdleRedirect();
   startPolling();
   bindSearchInputs();
 });
