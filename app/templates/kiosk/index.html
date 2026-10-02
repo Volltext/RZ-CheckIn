@@ -10,7 +10,7 @@
      eigenen Zeile -- der Platz gehört der Raum-Übersicht darunter (siehe .kiosk-rooms,
      bekommt flex:1 und wächst in den verbleibenden Platz). #}
   <div class="kiosk-topbar">
-    <div id="feedback-banner" data-poll-url="/kiosk/feedback-partial" data-poll-interval="2000">
+    <div id="feedback-banner" data-poll-url="/kiosk/feedback-partial" data-poll-interval="500">
       {% include "kiosk/_feedback.html" %}
     </div>
 
@@ -30,7 +30,7 @@
   </div>
 
   {# Raumzuordnung kommt aus app/routers/kiosk.py::_room_context (rooms/unzugeordnet_*) #}
-  <div id="presence-list" class="kiosk-rooms" data-poll-url="/kiosk/presence-partial" data-poll-interval="5000">
+  <div id="presence-list" class="kiosk-rooms" data-poll-url="/kiosk/presence-partial" data-poll-interval="2000" data-refresh-on="feedback-banner">
     {% include "kiosk/_presence.html" %}
   </div>
 </main>

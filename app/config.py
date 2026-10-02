@@ -26,7 +26,7 @@ class Settings(BaseSettings):
     # den Admin bewusst separat provisionieren, per RZ_ADMIN_AUTO_BOOTSTRAP=false abschaltbar.
     admin_auto_bootstrap: bool = True
 
-    scan_debounce_seconds: int = 5
+    scan_debounce_seconds: int = 1
     agent_offline_threshold_seconds: int = 90
     retention_days: int = 730
 
